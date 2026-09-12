@@ -15,13 +15,30 @@ npm run build     # protocol (tsc), extension (esbuild)
 npm test          # extension, mcp, and plugin launcher suites
 ```
 
+Shortcuts for each half, detailed below:
+
+```sh
+npm run install:local [-- --profile <name>]   # build, package, and install the extension into VS Code
+claude --plugin-dir packages/claude-plugin     # load the plugin from source
+npm link -w @nikiforovall/redline-mcp          # let an installed plugin run the server from this checkout
+```
+
+## The docs site
+
+`docs/` is a VitePress site, published to GitHub Pages by `.github/workflows/pages.yml` on every push to `main` that touches it. `PUBLISHING.md` is excluded from the site.
+
+```sh
+npm run docs:dev       # live preview
+npm run docs:build     # what the workflow runs; output in docs/.vitepress/dist
+```
+
 ## Packages
 
 | Package | What it is | Installs into |
 | --- | --- | --- |
 | `packages/extension` | The VS Code extension: renders a review round as a multi-file diff, collects comment threads, hosts the local socket the MCP server talks to. | VS Code |
 | `packages/mcp` | The MCP server, the review monitor, and lock-file discovery. Published to npm as `@nikiforovall/redline-mcp` with a `redline-mcp` bin. | npm (global or npx cache) |
-| `packages/claude-plugin` | The Claude Code plugin: the `/redline-annotate` and `/redline-tour` skills, the monitor registration, and `scripts/launch.mjs`, which finds the server. | Claude Code |
+| `packages/claude-plugin` | The Claude Code plugin: the `/redline-annotate`, `/redline-tour`, and `/redline-connect` skills, the monitor registration, and `scripts/launch.mjs`, which finds the server. | Claude Code |
 | `packages/protocol` | Shared TypeScript types. | build-time only |
 
 ## The extension

@@ -1,6 +1,8 @@
 # Redline
 
-Redline is a code review tool for Claude Code and VS Code. Claude Code collects the changes it just made, opens them as a multi-file diff in VS Code with its own notes attached, and waits. You read the diff, leave comments on the lines you care about, and click Submit. Claude wakes with those comments and edits the code.
+Redline is a two-way code review tool for Claude Code and VS Code. Claude posts its review of a diff as comment threads on the lines in VS Code. You answer, add your own threads, and click Submit. Claude works through every thread, edits the code, and replies in place until you close it.
+
+The [docs site](https://nikiforovall.blog/redline/) has a [guide](https://nikiforovall.blog/redline/guide) that walks one round end to end and a [reference](https://nikiforovall.blog/redline/reference) for every command, shortcut, setting, MCP tool, and error text.
 
 ![A review round: the diff with agent notes and a comment thread, the Comments panel, and the Review Rounds tree](assets/review-demo.png)
 
@@ -15,13 +17,23 @@ Plugin, from Claude Code:
 /plugin install redline@redline
 ```
 
-Extension, from a shell with `code` on PATH and `gh` signed in to the repo:
+Extension: download the `.vsix` from the [latest release](https://github.com/nikiforovall/redline/releases/latest) and run **Extensions: Install from VSIX...** in VS Code, or let the plugin fetch it from a shell with `code` on PATH and `gh` signed in:
 
 ```sh
 node ~/.claude/plugins/cache/redline/redline/<version>/scripts/install-extension.mjs [--profile <name>]
 ```
 
-The plugin does nothing without the extension. Rerun the script to update it; a plugin update does not update the extension.
+The plugin does nothing without the extension. Rerun the script to update it. A plugin update does not update the extension.
+
+## Skills
+
+| Skill                        | Does                                                                                                                                                                 |
+| ---------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `/redline:redline-tour`      | Opens Claude's diff as a round with a numbered walkthrough: Claude picks the parts a reader must understand and notes each one, in reading order. Then listens for your submit. |
+| `/redline:redline-annotate`  | Opens the diff with only the notes Claude already wrote for you in chat, or none. Then listens.                                                                      |
+| `/redline:redline-connect`   | Attaches the session to submits from VS Code. Run it after **Review working tree** in VS Code, or when a submit message says no agent is connected.                  |
+
+The round skills take an optional source: `staged`, `unstaged`, `all`, a ref or range such as `main` or `a..b`, a `.patch` file, or `--files <left> <right>`.
 
 ## Shortcuts
 
@@ -44,18 +56,13 @@ Thread shortcuts act on the thread nearest the cursor in the active diff, else o
 | ------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `packages/extension`     | The VS Code extension: renders the review round and collects comment threads.                                                                                                      |
 | `packages/mcp`           | The MCP server, the review monitor, and the lock-file discovery both sides share. On npm as `@nikiforovall/redline-mcp`, bin `redline-mcp`.                                        |
-| `packages/claude-plugin` | The Claude Code plugin: the `/redline-annotate` and `/redline-tour` skills, the monitor registration, and a launcher that finds the server in a checkout, on PATH, or through npx. |
+| `packages/claude-plugin` | The Claude Code plugin: the three skills above, the monitor registration, and a launcher that finds the server in a checkout, on PATH, or through npx.                            |
 | `packages/protocol`      | The shared TypeScript types.                                                                                                                                                       |
+
+## Privacy
+
+Redline is local only. The two halves talk over `127.0.0.1` with a random token kept in a lock file under `~/.redline/`. Rounds and comments stay in VS Code's workspace storage. There is no telemetry. The one optional network call loads your GitHub avatar for your comments, from the account VS Code is already signed in with. Set `redline.avatar` to `none` to turn it off.
 
 ## Develop
 
-```sh
-npm install
-npm run build
-npm test
-npm run install:local [-- --profile <name>]   # build, package, and install the extension into VS Code
-claude --plugin-dir packages/claude-plugin     # load the plugin from source
-npm link -w @nikiforovall/redline-mcp          # let an installed plugin run the server from this checkout
-```
-
-[docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) covers the edit loops (F5 dev host, `--plugin-dir`) and the real-install paths (`.vsix`, local directory marketplace) for each half. [docs/PUBLISHING.md](docs/PUBLISHING.md) covers versioning, `npm run release`, and what changes when the repo goes public.
+[docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) covers the build, the edit loops for each half, and the real-install paths. [docs/PUBLISHING.md](docs/PUBLISHING.md) covers versioning and `npm run release`.

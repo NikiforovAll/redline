@@ -5,6 +5,7 @@
   "version": "0.0.1",
   "private": true,
   "publisher": "nikiforovall",
+  "icon": "media/icon.png",
   "engines": {
     "vscode": "^1.90.0"
   },
