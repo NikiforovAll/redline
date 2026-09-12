@@ -50,10 +50,10 @@ export class ReviewUi implements vscode.Disposable {
   private tourCursor: { roundId: string; threadId: string } | undefined;
   /** Where the caret last was in a redline document. Survives the multi-diff remounting its editors and focus moving into a comment widget or the Comments panel. */
   private caret: { roundId: string; path: string; line: number } | undefined;
-  private readonly authorName = humanName();
+  private human: vscode.CommentAuthorInformation;
+  private readonly localIdentity: vscode.CommentAuthorInformation;
   private readonly rootUri: vscode.Uri | undefined;
   private readonly agentIcon: vscode.Uri | undefined;
-  private readonly humanIcon: vscode.Uri | undefined;
 
   constructor(
     private readonly store: ReviewStore,
@@ -63,7 +63,8 @@ export class ReviewUi implements vscode.Disposable {
   ) {
     this.rootUri = repoRoot ? vscode.Uri.file(repoRoot) : undefined;
     this.agentIcon = this.icon('claude-sunburst.svg');
-    this.humanIcon = this.icon('human-minimal.svg');
+    this.localIdentity = { name: humanName(), iconPath: this.icon('human-minimal.svg') };
+    this.human = this.localIdentity;
     this.controller = vscode.comments.createCommentController('redline', 'Redline review');
     this.controller.options = COMMENT_OPTIONS;
     this.controller.commentingRangeProvider = {
@@ -75,11 +76,41 @@ export class ReviewUi implements vscode.Disposable {
       vscode.workspace.registerTextDocumentContentProvider(REDLINE_SCHEME, {
         provideTextDocumentContent: (uri) => this.contentFor(uri)
       }),
-      vscode.window.onDidChangeTextEditorSelection((event) => this.trackCaret(event.textEditor))
+      vscode.window.onDidChangeTextEditorSelection((event) => this.trackCaret(event.textEditor)),
+      vscode.authentication.onDidChangeSessions((event) => {
+        if (event.provider.id === 'github') void this.resolveHumanIdentity();
+      }),
+      vscode.workspace.onDidChangeConfiguration((event) => {
+        if (event.affectsConfiguration('redline.avatar')) void this.resolveHumanIdentity();
+      })
     );
     this.trackCaret(vscode.window.activeTextEditor);
 
     this.rebuildThreads();
+    void this.resolveHumanIdentity();
+  }
+
+  /** Reviewer identity shown on human comments. Reads the GitHub account VS Code is already signed in with; a fresh sign-in is never requested, so the local user stays until one exists. `getAccounts` lists accounts regardless of granted scopes, where `getSession` would need a scope match. */
+  private async resolveHumanIdentity(): Promise<void> {
+    const next = (await this.githubIdentity()) ?? this.localIdentity;
+    if (next === this.human) return;
+    this.human = next;
+    for (const [threadId, thread] of this.byThreadId) {
+      thread.canReply = this.human;
+      this.refreshThread(threadId);
+    }
+  }
+
+  private async githubIdentity(): Promise<vscode.CommentAuthorInformation | undefined> {
+    if (vscode.workspace.getConfiguration('redline').get<string>('avatar', 'github') !== 'github') return undefined;
+    try {
+      const login = (await vscode.authentication.getAccounts('github'))[0]?.label;
+      if (!login) return undefined;
+      if (this.human.name === login && this.human !== this.localIdentity) return this.human;
+      return { name: login, iconPath: vscode.Uri.parse(`https://github.com/${encodeURIComponent(login)}.png?size=64`) };
+    } catch {
+      return undefined;
+    }
   }
 
   dispose(): void {
@@ -238,7 +269,7 @@ export class ReviewUi implements vscode.Disposable {
       return {
         author: fromClaude
           ? { name: AGENT_LABEL, iconPath: this.agentIcon }
-          : { name: this.authorName, iconPath: this.humanIcon },
+          : this.human,
         body: this.markdown(comment.body),
         mode: vscode.CommentMode.Preview,
         label: side,
@@ -260,7 +291,7 @@ export class ReviewUi implements vscode.Disposable {
       side: stored.anchor.side
     });
     thread.label = decoration.label;
-    thread.contextValue = decoration.contextValue;
+    thread.contextValue = `${decoration.contextValue}.${stored.id}`;
     thread.state = stored.resolved
       ? vscode.CommentThreadState.Resolved
       : vscode.CommentThreadState.Unresolved;
@@ -295,10 +326,7 @@ export class ReviewUi implements vscode.Disposable {
       new vscode.Range(line, 0, line, 0),
       this.commentsOf(stored)
     );
-    thread.canReply = {
-      name: this.authorName,
-      iconPath: this.humanIcon
-    };
+    thread.canReply = this.human;
     thread.collapsibleState = vscode.CommentThreadCollapsibleState.Expanded;
     this.decorate(round, stored, thread);
     this.byThreadId.set(stored.id, thread);
@@ -338,8 +366,11 @@ export class ReviewUi implements vscode.Disposable {
     if (round) this.createThread(round, stored);
   }
 
+  /** The stored id rides in `contextValue` (`redline.<stage>.<id>`), so a thread VS Code hands back as a rebuilt object still resolves exactly. */
   private threadIdOf(thread: vscode.CommentThread | undefined): string | undefined {
-    return thread ? this.idByThread.get(thread) : undefined;
+    if (!thread) return undefined;
+    const id = this.idByThread.get(thread) ?? thread.contextValue?.split('.')[2];
+    return id && this.store.thread(id) ? id : undefined;
   }
 
   private roundIdOfThread(thread: vscode.CommentThread | undefined): string | undefined {
@@ -410,29 +441,33 @@ export class ReviewUi implements vscode.Disposable {
   }
 
   /** Warns and returns undefined when no thread can be found; callers just return. */
-  private focusedThreadId(thread: vscode.CommentThread | undefined): string | undefined {
+  private focusedThreadId(
+    thread: vscode.CommentThread | undefined,
+    prefer?: (entry: Thread) => boolean
+  ): string | undefined {
     const fromArgument = this.threadIdOf(thread);
     if (fromArgument) return fromArgument;
     const caret = this.caret;
     const round = this.caretRound();
     let found: string | undefined;
     if (caret && round) {
-      // Several threads can share a line, so ties go to the stepped-to note, then to an open one.
+      // Several threads can share a line, so ties go to a thread the command can act on, then the stepped-to note, then an open one.
       found = round.threads
         .filter((entry) => entry.anchor.file === caret.path)
         .map((entry) => ({
           id: entry.id,
           distance: Math.abs(threadLine(round, entry) - caret.line),
+          rejected: prefer && !prefer(entry) ? 1 : 0,
           rank: entry.id === this.tourCursor?.threadId ? 0 : entry.resolved ? 2 : 1
         }))
-        .sort((a, b) => a.distance - b.distance || a.rank - b.rank)[0]?.id;
+        .sort((a, b) => a.distance - b.distance || a.rejected - b.rejected || a.rank - b.rank)[0]?.id;
     }
     if (!found) void vscode.window.showWarningMessage('Redline: no comment thread under the cursor.');
     return found;
   }
 
   private sendThread(thread: vscode.CommentThread | undefined): void {
-    const id = this.focusedThreadId(thread);
+    const id = this.focusedThreadId(thread, hasHumanComment);
     const stored = id ? this.store.thread(id) : undefined;
     if (!stored) return;
     if (!hasHumanComment(stored)) {

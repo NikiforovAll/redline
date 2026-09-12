@@ -131,24 +131,24 @@
         {
           "command": "redline.sendThread",
           "group": "inline@2",
-          "when": "commentController == redline && commentThread =~ /^redline\\.(draft|submitted)$/"
+          "when": "commentController == redline && commentThread =~ /^redline\\.(draft|submitted)\\./"
         }
       ],
       "comments/commentThread/title": [
         {
           "command": "redline.sendThread",
           "group": "navigation@1",
-          "when": "commentController == redline && commentThread =~ /^redline\\.(draft|submitted)$/"
+          "when": "commentController == redline && commentThread =~ /^redline\\.(draft|submitted)\\./"
         },
         {
           "command": "redline.resolveThread",
           "group": "navigation@2",
-          "when": "commentController == redline && commentThread =~ /^redline\\.(note|draft|submitted|sent)$/"
+          "when": "commentController == redline && commentThread =~ /^redline\\.(note|draft|submitted|sent)\\./"
         },
         {
           "command": "redline.reopenThread",
           "group": "navigation@2",
-          "when": "commentController == redline && commentThread == redline.resolved"
+          "when": "commentController == redline && commentThread =~ /^redline\\.resolved\\./"
         }
       ],
       "view/title": [
@@ -158,6 +158,21 @@
           "when": "view == workbench.panel.comments"
         }
       ]
+    },
+    "configuration": {
+      "title": "Redline",
+      "properties": {
+        "redline.avatar": {
+          "type": "string",
+          "enum": ["github", "none"],
+          "default": "github",
+          "enumDescriptions": [
+            "Show the login and avatar of the GitHub account VS Code is signed in with. Nothing is fetched until a session exists.",
+            "Show the OS user name with the built-in icon."
+          ],
+          "description": "Identity shown on your review comments."
+        }
+      }
     }
   },
   "scripts": {
