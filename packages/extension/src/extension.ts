@@ -33,26 +33,23 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   ui.register(context);
 
   context.subscriptions.push(
-    vscode.commands.registerCommand('redline.hello', () => {
-      void vscode.window.showInformationMessage(`redline ${version} is alive.`);
-    }),
     vscode.commands.registerCommand('redline.clearRounds', async () => {
       const count = store.rounds().length;
       const pick = await vscode.window.showWarningMessage(
-        `redline: discard ${count} review ${count === 1 ? 'round' : 'rounds'} and their comments?`,
+        `Redline: discard ${count} review ${count === 1 ? 'round' : 'rounds'} and their comments?`,
         { modal: true },
         'Discard'
       );
       if (pick !== 'Discard') return;
       store.clear();
       ui.rebuildThreads();
-      void vscode.window.showInformationMessage('redline: review rounds cleared.');
+      void vscode.window.showInformationMessage('Redline: review rounds cleared.');
     })
   );
 
   if (folders.length === 0) {
     void vscode.window.showWarningMessage(
-      'redline: open a folder for the review server to start.'
+      'Redline: open a folder for the review server to start.'
     );
     return;
   }
@@ -71,7 +68,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     },
     (err: unknown) => {
       void vscode.window.showErrorMessage(
-        `redline: could not start the review server (${String(err)}).`
+        `Redline: could not start the review server (${String(err)}).`
       );
     }
   );

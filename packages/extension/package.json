@@ -1,6 +1,6 @@
 {
   "name": "redline-extension",
-  "displayName": "redline",
+  "displayName": "Redline",
   "description": "Review agent diffs in VS Code and send comments back to Claude Code.",
   "version": "0.0.1",
   "private": true,
@@ -18,25 +18,33 @@
   "contributes": {
     "commands": [
       {
-        "command": "redline.hello",
-        "title": "redline: Hello"
-      },
-      {
         "command": "redline.submitReview",
-        "title": "redline: Submit review",
+        "title": "Redline: Submit review",
         "icon": "$(check-all)"
       },
       {
         "command": "redline.openRound",
-        "title": "redline: Open review round"
+        "title": "Redline: Open review round"
+      },
+      {
+        "command": "redline.openLatestRound",
+        "title": "Redline: Open latest round"
+      },
+      {
+        "command": "redline.nextNote",
+        "title": "Redline: Next note"
+      },
+      {
+        "command": "redline.previousNote",
+        "title": "Redline: Previous note"
       },
       {
         "command": "redline.clearRounds",
-        "title": "redline: Clear review rounds"
+        "title": "Redline: Clear review rounds"
       },
       {
         "command": "redline.reviewWorktree",
-        "title": "redline: Review working tree"
+        "title": "Redline: Review working tree"
       },
       {
         "command": "redline.reply",
@@ -44,7 +52,7 @@
       },
       {
         "command": "redline.sendThread",
-        "title": "Send to Claude",
+        "title": "Send to Agent",
         "icon": "$(send)"
       },
       {
@@ -56,6 +64,18 @@
         "command": "redline.reopenThread",
         "title": "Reopen thread",
         "icon": "$(issue-reopened)"
+      }
+    ],
+    "keybindings": [
+      {
+        "command": "redline.nextNote",
+        "key": "ctrl+alt+]",
+        "mac": "cmd+alt+]"
+      },
+      {
+        "command": "redline.previousNote",
+        "key": "ctrl+alt+[",
+        "mac": "cmd+alt+["
       }
     ],
     "menus": {

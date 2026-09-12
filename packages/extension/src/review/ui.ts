@@ -5,8 +5,10 @@ import * as vscode from 'vscode';
 import type { Anchor, Author, Thread } from '@redline/protocol';
 import { REDLINE_SCHEME, parseQuery, toUri, type ParsedRedlineUri, type UriSide } from '../diff/index.ts';
 import { attachSnapshot } from '../server/snapshot.ts';
-import { COMMENT_OPTIONS, sideLabel, threadDecoration } from './decoration.ts';
+import { AGENT_LABEL, COMMENT_OPTIONS, sideLabel, threadDecoration } from './decoration.ts';
+import { absolutizeLinks } from './markdown.ts';
 import { anchorLine, hasHumanComment, type ReviewStore, type StoredRound } from './store.ts';
+import { stepIndex, tourOrder } from './tour.ts';
 
 export interface UiEvent {
   emitSubmitted: (payload: {
@@ -38,7 +40,11 @@ export class ReviewUi implements vscode.Disposable {
   private readonly roundIdByThreadId = new Map<string, string>();
   private readonly disposables: vscode.Disposable[] = [];
   private readonly sentThreadIds = new Set<string>();
+  private tourCursor: { roundId: string; threadId: string } | undefined;
   private readonly authorName = humanName();
+  private readonly rootUri: vscode.Uri | undefined;
+  private readonly agentIcon: vscode.Uri | undefined;
+  private readonly humanIcon: vscode.Uri | undefined;
 
   constructor(
     private readonly store: ReviewStore,
@@ -46,7 +52,10 @@ export class ReviewUi implements vscode.Disposable {
     private readonly events: UiEvent,
     private readonly mediaRoot?: vscode.Uri
   ) {
-    this.controller = vscode.comments.createCommentController('redline', 'redline review');
+    this.rootUri = repoRoot ? vscode.Uri.file(repoRoot) : undefined;
+    this.agentIcon = this.icon('claude-sunburst.svg');
+    this.humanIcon = this.icon('human-minimal.svg');
+    this.controller = vscode.comments.createCommentController('redline', 'Redline review');
     this.controller.options = COMMENT_OPTIONS;
     this.controller.commentingRangeProvider = {
       provideCommentingRanges: (document) => this.commentingRanges(document)
@@ -120,19 +129,23 @@ export class ReviewUi implements vscode.Disposable {
       const right = this.uriFor(roundId, 'right', file.path);
       return [this.labelFor(file.path, right), left, right];
     });
-    const title = `redline ${round.id}: ${round.title ?? round.sourceLabel}`;
+    const title = `Redline ${round.id}: ${round.title ?? round.sourceLabel}`;
     try {
       await vscode.commands.executeCommand('vscode.changes', title, resources);
+      // vscode.changes takes no editor options, so the tab opens as a preview and the next
+      // Explorer click replaces it. keepEditor pins whatever tab is active, which is this one.
+      await vscode.commands.executeCommand('workbench.action.keepEditor');
     } catch (err) {
       void vscode.window.showWarningMessage(
-        `redline: vscode.changes failed (${String(err)}), opening single diffs.`
+        `Redline: vscode.changes failed (${String(err)}), opening single diffs.`
       );
       for (const file of round.files) {
         await vscode.commands.executeCommand(
           'vscode.diff',
           this.uriFor(roundId, 'left', file.path),
           this.uriFor(roundId, 'right', file.path),
-          `${file.path} (${roundId})`
+          `${file.path} (${roundId})`,
+          { preview: false }
         );
       }
     }
@@ -169,16 +182,22 @@ export class ReviewUi implements vscode.Disposable {
     return this.mediaRoot ? vscode.Uri.joinPath(this.mediaRoot, 'media', name) : undefined;
   }
 
+  private markdown(body: string): vscode.MarkdownString {
+    const root = this.rootUri;
+    return new vscode.MarkdownString(
+      root ? absolutizeLinks(body, (path) => vscode.Uri.joinPath(root, path).toString()) : body
+    );
+  }
+
   private commentsOf(thread: Thread): vscode.Comment[] {
     const side = sideLabel(thread.anchor.side);
     return thread.comments.map((comment) => {
       const fromClaude = comment.author === 'claude';
       return {
-        author: {
-          name: fromClaude ? 'Claude' : this.authorName,
-          iconPath: this.icon(fromClaude ? 'claude-sunburst.svg' : 'human-minimal.svg')
-        },
-        body: new vscode.MarkdownString(comment.body),
+        author: fromClaude
+          ? { name: AGENT_LABEL, iconPath: this.agentIcon }
+          : { name: this.authorName, iconPath: this.humanIcon },
+        body: this.markdown(comment.body),
         mode: vscode.CommentMode.Preview,
         label: side,
         timestamp: new Date(comment.createdAt),
@@ -233,7 +252,7 @@ export class ReviewUi implements vscode.Disposable {
     );
     thread.canReply = {
       name: this.authorName,
-      iconPath: this.icon('human.svg')
+      iconPath: this.humanIcon
     };
     thread.collapsibleState = vscode.CommentThreadCollapsibleState.Expanded;
     this.decorate(round, stored, thread);
@@ -265,7 +284,7 @@ export class ReviewUi implements vscode.Disposable {
     }
     const placed = this.anchorOf(reply.thread.uri, reply.thread.range?.start.line ?? 0);
     if (!placed) {
-      void vscode.window.showWarningMessage('redline: this document is not part of a review round.');
+      void vscode.window.showWarningMessage('Redline: this document is not part of a review round.');
       return;
     }
     const stored = this.store.addThread(placed.roundId, placed.anchor, author, text);
@@ -310,7 +329,7 @@ export class ReviewUi implements vscode.Disposable {
         detail: round.title,
         id: round.id
       })),
-      { placeHolder: 'Which redline review round?' }
+      { placeHolder: 'Which Redline review round?' }
     );
     return picked?.id;
   }
@@ -318,12 +337,12 @@ export class ReviewUi implements vscode.Disposable {
   private async submit(thread?: vscode.CommentThread): Promise<void> {
     const roundId = await this.resolveRoundId(thread);
     if (!roundId) {
-      void vscode.window.showInformationMessage('redline: no review round to submit.');
+      void vscode.window.showInformationMessage('Redline: no review round to submit.');
       return;
     }
     const result = this.store.markSubmitted(roundId);
     if (result.threadIds.length === 0) {
-      void vscode.window.showInformationMessage('redline: no new comments to send.');
+      void vscode.window.showInformationMessage('Redline: no new comments to send.');
       return;
     }
     this.events.emitSubmitted({
@@ -334,9 +353,9 @@ export class ReviewUi implements vscode.Disposable {
     });
     this.refreshRound(result.roundId);
     void vscode.window.showInformationMessage(
-      `redline: sent ${result.commentCount} comment${result.commentCount === 1 ? '' : 's'} in ${
+      `Redline: sent ${result.commentCount} comment${result.commentCount === 1 ? '' : 's'} in ${
         result.fileCount
-      } file${result.fileCount === 1 ? '' : 's'} to Claude.`
+      } file${result.fileCount === 1 ? '' : 's'} to ${AGENT_LABEL}.`
     );
   }
 
@@ -344,7 +363,7 @@ export class ReviewUi implements vscode.Disposable {
     const id = this.threadIdOf(thread);
     const stored = id ? this.store.thread(id) : undefined;
     if (!stored) {
-      void vscode.window.showWarningMessage('redline: this thread is not tracked yet.');
+      void vscode.window.showWarningMessage('Redline: this thread is not tracked yet.');
       return;
     }
     const file = this.store.file(stored.roundId, stored.anchor.file);
@@ -356,7 +375,7 @@ export class ReviewUi implements vscode.Disposable {
     });
     this.sentThreadIds.add(stored.id);
     this.refreshThread(stored.id);
-    void vscode.window.showInformationMessage(`redline: sent ${stored.id} to Claude.`);
+    void vscode.window.showInformationMessage(`Redline: sent ${stored.id} to ${AGENT_LABEL}.`);
   }
 
   private toggleResolved(thread: vscode.CommentThread): void {
@@ -371,7 +390,7 @@ export class ReviewUi implements vscode.Disposable {
   private async pickRound(): Promise<void> {
     const summaries = this.store.summaries();
     if (summaries.length === 0) {
-      void vscode.window.showInformationMessage('redline: no rounds yet.');
+      void vscode.window.showInformationMessage('Redline: no rounds yet.');
       return;
     }
     const picked = await vscode.window.showQuickPick(
@@ -386,6 +405,61 @@ export class ReviewUi implements vscode.Disposable {
     if (picked) await this.openRound(picked.id);
   }
 
+  private currentRound(): StoredRound | undefined {
+    const active = vscode.window.activeTextEditor?.document.uri;
+    const parsed = active ? this.parse(active) : null;
+    const fromEditor = parsed ? this.store.round(parsed.roundId) : undefined;
+    return fromEditor ?? this.store.rounds().at(-1);
+  }
+
+  private async stepNote(delta: 1 | -1): Promise<void> {
+    const round = this.currentRound();
+    if (!round) {
+      void vscode.window.showInformationMessage('Redline: no rounds yet.');
+      return;
+    }
+    const ordered = tourOrder(
+      round.threads,
+      round.files.map((file) => file.path)
+    );
+    if (ordered.length === 0) {
+      void vscode.window.showInformationMessage(`Redline: ${round.id} has no comments.`);
+      return;
+    }
+    const current =
+      this.tourCursor?.roundId === round.id
+        ? ordered.findIndex((thread) => thread.id === this.tourCursor?.threadId)
+        : -1;
+    const target = ordered[stepIndex(current === -1 ? undefined : current, delta, ordered.length)];
+    this.tourCursor = { roundId: round.id, threadId: target.id };
+    await this.revealThread(round, target, `${ordered.indexOf(target) + 1}/${ordered.length}`);
+  }
+
+  private async revealThread(round: StoredRound, stored: Thread, position: string): Promise<void> {
+    const file = round.files.find((entry) => entry.path === stored.anchor.file);
+    const line = Math.max(0, anchorLine(stored.anchor, file, 1) - 1);
+    const range = new vscode.Range(line, 0, line, 0);
+    await vscode.commands.executeCommand(
+      'vscode.diff',
+      this.uriFor(round.id, 'left', stored.anchor.file),
+      this.uriFor(round.id, 'right', stored.anchor.file),
+      `${stored.anchor.file} (${round.id})`,
+      { preview: false, selection: range }
+    );
+    const thread = this.byThreadId.get(stored.id);
+    if (thread) thread.collapsibleState = vscode.CommentThreadCollapsibleState.Expanded;
+    vscode.window.setStatusBarMessage(`Redline: note ${position}`, 3000);
+  }
+
+  private async openLatestRound(): Promise<void> {
+    const latest = this.store.rounds().at(-1);
+    if (!latest) {
+      void vscode.window.showInformationMessage('Redline: no rounds yet.');
+      return;
+    }
+    await this.openRound(latest.id);
+  }
+
   private async reviewWorktree(): Promise<void> {
     const round = this.store.createRound({
       source: { kind: 'worktree', scope: 'all' },
@@ -394,7 +468,7 @@ export class ReviewUi implements vscode.Disposable {
     try {
       await this.materialize(round);
     } catch (err) {
-      void vscode.window.showErrorMessage(`redline: ${String(err)}`);
+      void vscode.window.showErrorMessage(`Redline: ${String(err)}`);
     }
   }
 
@@ -417,6 +491,9 @@ export class ReviewUi implements vscode.Disposable {
         this.toggleResolved(thread)
       ),
       vscode.commands.registerCommand('redline.openRound', () => this.pickRound()),
+      vscode.commands.registerCommand('redline.openLatestRound', () => this.openLatestRound()),
+      vscode.commands.registerCommand('redline.nextNote', () => this.stepNote(1)),
+      vscode.commands.registerCommand('redline.previousNote', () => this.stepNote(-1)),
       vscode.commands.registerCommand('redline.reviewWorktree', () => this.reviewWorktree())
     );
   }

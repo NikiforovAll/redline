@@ -21,7 +21,7 @@ npm test          # extension, mcp, and plugin launcher suites
 | --- | --- | --- |
 | `packages/extension` | The VS Code extension: renders a review round as a multi-file diff, collects comment threads, hosts the local socket the MCP server talks to. | VS Code |
 | `packages/mcp` | The MCP server, the review monitor, and lock-file discovery. Published to npm as `@nikiforovall/redline-mcp` with a `redline-mcp` bin. | npm (global or npx cache) |
-| `packages/claude-plugin` | The Claude Code plugin: the `/redline-annotate` skill, the monitor registration, and `scripts/launch.mjs`, which finds the server. | Claude Code |
+| `packages/claude-plugin` | The Claude Code plugin: the `/redline-annotate` and `/redline-tour` skills, the monitor registration, and `scripts/launch.mjs`, which finds the server. | Claude Code |
 | `packages/protocol` | Shared TypeScript types. | build-time only |
 
 ## The extension
@@ -89,6 +89,6 @@ node packages/mcp/src/cli.mjs server
 
 1. `npm run install:local`, then open a git repo in VS Code with the extension active.
 2. In that repo, start Claude Code with the plugin (either path above) and ask it to call `redline_ping`. Without a matching VS Code window it returns the fixed `redline: no VS Code window ...` text; with one it returns the window's port.
-3. Run `/redline-annotate`. The diff opens in VS Code; comment, click Submit, and the session wakes with the comments.
+3. Run `/redline-annotate` to open the diff as is, or `/redline-tour` for a numbered walkthrough. The diff opens in VS Code; comment, click Submit, and the session wakes with the comments.
 
 `_plans/arev-spike/demo.md` has the longer walk-through.

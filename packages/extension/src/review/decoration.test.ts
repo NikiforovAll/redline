@@ -43,7 +43,7 @@ describe('threadDecoration', () => {
     assert.equal(threadDecoration(input({ submitted: true, sent: true })).stage, 'sent');
     assert.equal(
       threadDecoration(input({ sent: true })).label,
-      'sent to Claude · middleware.ts:76 (new)'
+      'sent to Agent · middleware.ts:76 (new)'
     );
   });
 
@@ -66,7 +66,7 @@ describe('threadDecoration', () => {
 
 describe('reply box copy', () => {
   it('stays short enough not to wrap in the comment widget', () => {
-    assert.equal(COMMENT_OPTIONS.prompt, 'Comment for Claude');
+    assert.equal(COMMENT_OPTIONS.prompt, 'Comment for Agent');
     assert.equal(COMMENT_OPTIONS.placeHolder, 'Comment');
   });
 });

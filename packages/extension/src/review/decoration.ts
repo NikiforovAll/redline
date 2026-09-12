@@ -19,11 +19,13 @@ export interface ThreadDecoration {
   contextValue: string;
 }
 
+export const AGENT_LABEL = 'Agent';
+
 const BADGE: Record<ThreadStage, string> = {
   note: 'note',
   draft: 'draft',
   submitted: 'submitted',
-  sent: 'sent to Claude',
+  sent: `sent to ${AGENT_LABEL}`,
   resolved: 'resolved'
 };
 
@@ -50,6 +52,6 @@ export function threadDecoration(input: ThreadDecorationInput): ThreadDecoration
 }
 
 export const COMMENT_OPTIONS = {
-  prompt: 'Comment for Claude',
+  prompt: 'Comment for Agent',
   placeHolder: 'Comment'
 };
