@@ -52,10 +52,10 @@ Plugin:
 Extension, from a shell with `code` on PATH and `gh` authenticated against the repo:
 
 ```sh
-node ~/.claude/plugins/cache/redline/redline/<version>/scripts/install-extension.mjs [--profile <name>]
+node ~/.claude/plugins/cache/redline/redline/<version>/scripts/install-extension.mjs [--profile <name>] [--insiders]
 ```
 
-It reads the installed version from `code --list-extensions --show-versions`, the latest from `gh release view`, exits when they match, and otherwise downloads the `.vsix` and runs `code --install-extension --force`. `REDLINE_REPO` overrides the `owner/name` read from `plugin.json`; `REDLINE_VSCODE_PROFILE` is the environment form of `--profile`. Updating the plugin does not update the extension; the user reruns this script.
+It reads the installed version from `code --list-extensions --show-versions`, the latest from `gh release view`, exits when they match, and otherwise downloads the `.vsix` and runs `code --install-extension --force`. `--insiders` targets VS Code Insiders through `code-insiders` instead. `REDLINE_REPO` overrides the `owner/name` read from `plugin.json`; `REDLINE_VSCODE_PROFILE` and `REDLINE_VSCODE_INSIDERS=1` are the environment forms of the two flags. Updating the plugin does not update the extension; the user reruns this script.
 
 ## Going public later
 

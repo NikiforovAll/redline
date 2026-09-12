@@ -4,7 +4,7 @@ import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { command } from '../packages/claude-plugin/scripts/spawn.mjs';
 
-export { vscodeProfile } from '../packages/claude-plugin/scripts/spawn.mjs';
+export { vscodeCli, vscodeProfile } from '../packages/claude-plugin/scripts/spawn.mjs';
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const dist = join(repoRoot, 'dist');

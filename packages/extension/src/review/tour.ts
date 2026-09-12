@@ -1,10 +1,31 @@
 import type { Thread } from '@redline/protocol';
+import type { StoredRound } from './store.ts';
 
-const TOUR_PREFIX = /^\s*\*\*\[(\d+)\/\d+\]\*\*/;
+const TOUR_PREFIX = /^\s*\*\*\[(\d+)\/\d+\]\*\*\s*/;
 
 export function tourNumber(thread: Thread): number | undefined {
   const match = TOUR_PREFIX.exec(thread.comments[0]?.body ?? '');
   return match ? Number(match[1]) : undefined;
+}
+
+export function stripTourPrefix(text: string): string {
+  return text.replace(TOUR_PREFIX, '');
+}
+
+/** Every thread in reading order: numbered tour notes first, then the rest by file and line. */
+export function allNotes(round: StoredRound): Thread[] {
+  return tourOrder(round.threads, round.files.map((file) => file.path));
+}
+
+/** Unresolved threads in reading order. */
+export function openNotes(round: StoredRound): Thread[] {
+  return allNotes(round).filter((thread) => !thread.resolved);
+}
+
+/** "n/total" over all threads, so a note keeps its number when earlier ones are resolved. */
+export function notePosition(round: StoredRound, thread: Thread): string {
+  const ordered = allNotes(round);
+  return `${ordered.findIndex((entry) => entry.id === thread.id) + 1}/${ordered.length}`;
 }
 
 export function anchorSortLine(thread: Thread): number {

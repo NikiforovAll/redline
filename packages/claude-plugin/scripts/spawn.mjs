@@ -15,6 +15,12 @@ export function command(file, args) {
   ];
 }
 
+export function vscodeCli() {
+  const insiders =
+    process.argv.includes('--insiders') || /^(1|true)$/i.test(process.env.REDLINE_VSCODE_INSIDERS ?? '');
+  return insiders ? 'code-insiders' : 'code';
+}
+
 export function vscodeProfile() {
   const index = process.argv.indexOf('--profile');
   const name = index === -1 ? process.env.REDLINE_VSCODE_PROFILE : process.argv[index + 1];

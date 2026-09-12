@@ -112,9 +112,11 @@ test('GET /rounds/{id} 404s for an unknown round', async () => {
   assert.match(body.error, /unknown round r99/);
 });
 
-test('/pending is empty until a human comments', async () => {
+test('/pending is empty until the reviewer submits', async () => {
   assert.deepEqual((await api('/pending')).body, []);
   store.addThread('r1', { file: 'src/app.ts', side: 'right', newLine: 2 }, 'human', 'rename this');
+  assert.deepEqual((await api('/pending')).body, []);
+  store.markSubmitted('r1');
   const { body } = await api('/pending');
   assert.equal(body.length, 1);
   assert.equal(body[0].roundId, 'r1');

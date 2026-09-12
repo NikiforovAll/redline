@@ -3,12 +3,6 @@
     "name": "redline-review",
     "description": "redline review event",
     "command": "node \"${CLAUDE_PLUGIN_ROOT}/scripts/launch.mjs\" monitor",
-    "when": "on-skill-invoke:redline:redline-annotate"
-  },
-  {
-    "name": "redline-review-tour",
-    "description": "redline review event (tour)",
-    "command": "node \"${CLAUDE_PLUGIN_ROOT}/scripts/launch.mjs\" monitor",
-    "when": "on-skill-invoke:redline:redline-tour"
+    "when": "on-skill-invoke:redline:redline-connect"
   }
 ]

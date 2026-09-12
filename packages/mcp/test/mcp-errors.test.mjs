@@ -3,13 +3,11 @@ import { spawn } from 'node:child_process';
 import { dirname, join } from 'node:path';
 import test, { after } from 'node:test';
 import { fileURLToPath } from 'node:url';
-import { makeRedlineHome, writeGhostLock } from './harness.mjs';
+import { makeRedlineHome, startProtoServer, writeGhostLock } from './harness.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const packageRoot = dirname(here);
-const repoRoot = dirname(dirname(packageRoot));
 const mcpServer = join(packageRoot, 'src', 'mcp-server.mjs');
-const protoServer = join(repoRoot, 'packages', 'extension', 'scripts', 'proto-server.mjs');
 
 const { normalizeWorkspacePath } = await import('../src/discover.mjs');
 
@@ -89,30 +87,6 @@ function requestReview(cwd, redlineHome) {
         }
       })}\n`
     );
-  });
-}
-
-function startProtoServer(cwd, redlineHome) {
-  return new Promise((resolve, reject) => {
-    const child = spawn(process.execPath, [protoServer], {
-      cwd,
-      env: { ...process.env, REDLINE_HOME: redlineHome, REDLINE_REPO_ROOT: cwd },
-      stdio: ['ignore', 'pipe', 'pipe']
-    });
-    const timer = setTimeout(() => {
-      child.kill();
-      reject(new Error('proto-server did not start'));
-    }, 30000);
-    let buffer = '';
-    child.stdout.on('data', (chunk) => {
-      buffer += chunk;
-      const match = buffer.match(/\{[\s\S]*?"lockPath"[\s\S]*?\}/);
-      if (match) {
-        clearTimeout(timer);
-        resolve({ child, info: JSON.parse(match[0]) });
-      }
-    });
-    child.on('error', reject);
   });
 }
 

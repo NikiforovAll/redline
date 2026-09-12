@@ -1,6 +1,10 @@
-# redline
+# Redline
 
-redline is a spike for an agent review loop. Claude Code collects the changes it just made, opens them as a multi-file diff in VS Code with its own notes attached, and waits. You read the diff, leave comments on the lines you care about, and click Submit. Claude wakes with those comments and edits the code. The repo holds four packages: `packages/extension`, a VS Code extension that renders the review round and collects comment threads; `packages/mcp`, published to npm as `@nikiforovall/redline-mcp` (bin `redline-mcp`), holding the MCP server, the review monitor, and the lock-file discovery both sides share; `packages/claude-plugin`, the Claude Code plugin itself — the `/redline-annotate` and `/redline-tour` skills, the monitor registration, and a launcher that finds the server in a checkout, on PATH, or through npx; and `packages/protocol`, the shared TypeScript types.
+Redline is a code review tool for Claude Code and VS Code. Claude Code collects the changes it just made, opens them as a multi-file diff in VS Code with its own notes attached, and waits. You read the diff, leave comments on the lines you care about, and click Submit. Claude wakes with those comments and edits the code.
+
+![A review round: the diff with agent notes and a comment thread, the Comments panel, and the Review Rounds tree](assets/review-demo.png)
+
+![The loop end to end: a reviewer question in a thread, the agent's reply, and the Claude Code session that woke on submit](assets/review-interactive-demo.png)
 
 ## Install
 
@@ -33,6 +37,15 @@ Every shortcut is a chord behind `Ctrl+Alt+R` (`Cmd+Alt+R` on macOS). Press the 
 | `Ctrl+Alt+R R`              | Resolve or reopen the thread under the cursor |
 
 Thread shortcuts act on the thread nearest the cursor in the active diff, else on the note you last stepped to.
+
+## Packages
+
+| Package                  | What it holds                                                                                                                                                                      |
+| ------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `packages/extension`     | The VS Code extension: renders the review round and collects comment threads.                                                                                                      |
+| `packages/mcp`           | The MCP server, the review monitor, and the lock-file discovery both sides share. On npm as `@nikiforovall/redline-mcp`, bin `redline-mcp`.                                        |
+| `packages/claude-plugin` | The Claude Code plugin: the `/redline-annotate` and `/redline-tour` skills, the monitor registration, and a launcher that finds the server in a checkout, on PATH, or through npx. |
+| `packages/protocol`      | The shared TypeScript types.                                                                                                                                                       |
 
 ## Develop
 

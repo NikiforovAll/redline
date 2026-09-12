@@ -1,20 +1,13 @@
 #!/usr/bin/env node
 import { readFileSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
 import { isAlive } from './redline-home.mjs';
 import { discover } from './discover.mjs';
+import { MONITOR_BEAT_MS, MONITOR_LOCK_TAG, MONITOR_STALE_MS, monitorLockPath, sleep } from './wake.mjs';
 
 const SESSION_ID = process.env.CLAUDE_CODE_SESSION_ID;
 if (!SESSION_ID) process.exit(0);
 
-const LOCK_FILE = join(
-  process.env.CLAUDE_PLUGIN_DATA || tmpdir(),
-  `redline-monitor-${SESSION_ID}.pid`
-);
-const LOCK_TAG = 'redline-monitor';
-const BEAT_MS = 5000;
-const STALE_MS = 3 * BEAT_MS;
+const LOCK_FILE = monitorLockPath(SESSION_ID);
 const BACKOFF_MIN_MS = Number(process.env.REDLINE_MONITOR_BACKOFF_MIN_MS) || 1000;
 const BACKOFF_MAX_MS = Number(process.env.REDLINE_MONITOR_BACKOFF_MAX_MS) || 30000;
 
@@ -22,7 +15,7 @@ function touchLock() {
   try {
     writeFileSync(
       LOCK_FILE,
-      JSON.stringify({ tag: LOCK_TAG, sid: SESSION_ID, pid: process.pid, beatAt: Date.now() })
+      JSON.stringify({ tag: MONITOR_LOCK_TAG, sid: SESSION_ID, pid: process.pid, cwd: process.cwd(), beatAt: Date.now() })
     );
   } catch {
     /* unwritable -> run unlocked */
@@ -37,22 +30,21 @@ try {
 }
 if (
   rec &&
-  rec.tag === LOCK_TAG &&
+  rec.tag === MONITOR_LOCK_TAG &&
   rec.sid === SESSION_ID &&
-  Number(rec.beatAt) > Date.now() - STALE_MS &&
+  Number(rec.beatAt) > Date.now() - MONITOR_STALE_MS &&
   isAlive(Number(rec.pid))
 ) {
   process.exit(0);
 }
 touchLock();
-setInterval(touchLock, BEAT_MS).unref();
+setInterval(touchLock, MONITOR_BEAT_MS).unref();
 
 const sanitize = (s) =>
   String(s ?? '')
     .replace(/[\x00-\x1f\x7f]/g, ' ')
     .slice(0, 120);
 
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const note = (msg) => process.stderr.write(`redline-monitor: ${msg}\n`);
 
 const plural = (count, noun) => `${count} ${noun}${count === 1 ? '' : 's'}`;
@@ -114,12 +106,37 @@ function handleFrame(block) {
   announce(id, event);
 }
 
+// The stream carries no history on a first connect, so comments submitted before this monitor
+// started are announced from /pending once. Reconnects replay by last-event-id instead.
+let backlogDone = false;
+async function announceBacklog(found) {
+  if (backlogDone) return;
+  backlogDone = true;
+  const res = await fetch(`http://127.0.0.1:${found.port}/pending`, {
+    headers: { authorization: `Bearer ${found.token}` },
+    signal: AbortSignal.timeout(5000)
+  });
+  if (!res.ok) return;
+  const pending = await res.json();
+  if (!Array.isArray(pending)) return;
+  for (const item of pending) {
+    announce(null, {
+      type: 'review_submitted',
+      roundId: item.roundId,
+      commentCount: item.threadIds?.length ?? 0,
+      fileCount: item.fileCount,
+      sourceLabel: item.sourceLabel
+    });
+  }
+}
+
 async function stream() {
   const found = await discover(process.cwd());
   const headers = { authorization: `Bearer ${found.token}`, accept: 'text/event-stream' };
   if (lastEventId) headers['last-event-id'] = lastEventId;
   const res = await fetch(`http://127.0.0.1:${found.port}/events`, { headers });
   if (!res.ok || !res.body) throw new Error(`/events returned ${res.status}`);
+  await announceBacklog(found);
   return res.body;
 }
 

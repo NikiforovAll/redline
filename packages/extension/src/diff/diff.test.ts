@@ -49,11 +49,12 @@ describe('worktree staged', () => {
 });
 
 describe('worktree unstaged', () => {
-  it('lists the dirty file against the index', async () => {
+  it('lists the dirty file against the index, plus untracked files', async () => {
     const snapshot = await buildSnapshot({ kind: 'worktree', scope: 'unstaged' }, fixture.root);
     const files = byPath(snapshot.files);
 
-    assert.deepEqual([...files.keys()], ['a.txt']);
+    assert.deepEqual([...files.keys()], ['a.txt', 'untracked.txt']);
+    assert.equal(files.get('untracked.txt')!.status, 'added');
     const a = files.get('a.txt')!;
     assert.equal(a.status, 'modified');
     assert.equal(a.left, fixtureContents.A_V2);

@@ -33,6 +33,7 @@ npm test          # extension, mcp, and plugin launcher suites
 ```sh
 npm run install:local                       # default profile
 npm run install:local -- --profile dotnet   # a named VS Code profile
+npm run install:local -- --insiders         # VS Code Insiders (code-insiders on PATH)
 ```
 
 Reload open VS Code windows afterwards. The install is idempotent: rerun it after every change you want to try outside the dev host. To remove it:
@@ -77,6 +78,8 @@ Do not run both at once for the same session: `--plugin-dir` and the installed p
 3. `npx -y @nikiforovall/redline-mcp@<plugin.json version>`: a fresh install with nothing else set up. Downloads once into the npm cache. Until the package is published this branch fails, and Claude Code shows the npx error.
 
 Claude Code started from the desktop app can have a shorter PATH than your shell. If the launcher reports `via npx` when you expected the link, that is why; start Claude from a terminal or install globally with the same npm that is on that PATH.
+
+**Same folder open in stable and Insiders.** Each window writes its own lock with `app` (`vscode` or `vscode-insiders`) and `appPid`, the pid of its main process. The MCP server picks the window Claude Code runs in: `VSCODE_PID`, which every child of a window inherits, matches `appPid` exactly; failing that the app is taken from `REDLINE_VSCODE_APP` or from an Insiders integrated terminal (`TERM_PROGRAM_VERSION` ends in `-insider`); failing that the newest window wins. From a plain terminal or tmux, set `REDLINE_VSCODE_APP=vscode-insiders` in the MCP server environment to target Insiders. The `request_review` result names the app it posted to.
 
 To poke the server alone over stdio:
 

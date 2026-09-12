@@ -4,7 +4,7 @@ import { mkdtempSync, readFileSync, readdirSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { command, vscodeProfile } from './spawn.mjs';
+import { command, vscodeCli, vscodeProfile } from './spawn.mjs';
 
 const EXTENSION_ID = 'nikiforovall.redline-extension';
 
@@ -18,6 +18,7 @@ const repo =
   manifest.repository?.replace(/^https:\/\/github\.com\//, '').replace(/\.git$/, '');
 
 const profile = vscodeProfile();
+const code = vscodeCli();
 
 function exec(file, args, options = {}) {
   const [cmd, argv, extra] = command(file, args);
@@ -33,13 +34,13 @@ function fail(message) {
 
 let installed = null;
 try {
-  const line = capture('code', [...profile, '--list-extensions', '--show-versions'])
+  const line = capture(code, [...profile, '--list-extensions', '--show-versions'])
     .split('\n')
     .map((l) => l.trim())
     .find((l) => l.toLowerCase().startsWith(`${EXTENSION_ID.toLowerCase()}@`));
   installed = line ? line.split('@').pop() : null;
 } catch {
-  fail('the "code" command is not on PATH. In VS Code run "Shell Command: Install \'code\' command in PATH".');
+  fail(`the "${code}" command is not on PATH. In VS Code run "Shell Command: Install '${code}' command in PATH".`);
 }
 
 let latest;
@@ -73,10 +74,10 @@ try {
   );
   const vsix = readdirSync(staging).find((name) => name.endsWith('.vsix'));
   if (!vsix) fail(`release v${latest} has no .vsix asset.`);
-  exec('code', [...profile, '--install-extension', join(staging, vsix), '--force'], {
+  exec(code, [...profile, '--install-extension', join(staging, vsix), '--force'], {
     stdio: 'inherit'
   });
-  console.log(`redline: extension ${latest} installed. Reload VS Code to activate it.`);
+  console.log(`redline: extension ${latest} installed via ${code}. Reload VS Code to activate it.`);
 } finally {
   rmSync(staging, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 });
 }

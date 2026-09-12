@@ -198,23 +198,15 @@ async function worktreeSnapshot(repoRoot: string, scope: 'staged' | 'unstaged' |
     return { files };
   }
 
-  if (scope === 'unstaged') {
-    const patch = await gitDiff(repoRoot, []);
-    const files = await buildEntries(
-      patch,
-      (file) => gitOrNull(repoRoot, ['show', `:${file.oldPath as string}`]),
-      (file) => readDisk(repoRoot, file.newPath as string)
-    );
-    return { files };
-  }
-
-  const patch = await gitDiff(repoRoot, ['HEAD']);
+  // Untracked files are unstaged work too: `git status` lists them, `git diff` does not.
+  const base = scope === 'unstaged' ? [] : ['HEAD'];
+  const loadLeft =
+    scope === 'unstaged'
+      ? (file: ParsedFile) => gitOrNull(repoRoot, ['show', `:${file.oldPath as string}`])
+      : (file: ParsedFile) => showBlob(repoRoot, 'HEAD', file.oldPath as string);
+  const patch = await gitDiff(repoRoot, base);
   const [tracked, untracked] = await Promise.all([
-    buildEntries(
-      patch,
-      (file) => showBlob(repoRoot, 'HEAD', file.oldPath as string),
-      (file) => readDisk(repoRoot, file.newPath as string)
-    ),
+    buildEntries(patch, loadLeft, (file) => readDisk(repoRoot, file.newPath as string)),
     untrackedFiles(repoRoot)
   ]);
   return { files: [...tracked, ...untracked] };

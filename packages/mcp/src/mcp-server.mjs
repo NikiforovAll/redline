@@ -6,6 +6,10 @@ import {
   ListToolsRequestSchema
 } from '@modelcontextprotocol/sdk/types.js';
 import { discover, DISCOVER_NO_LOCK, DISCOVER_STALE_LOCK } from './discover.mjs';
+import { CONNECT_TEXT, monitorArmed, sleep, WAIT_MAX_S } from './wake.mjs';
+
+const WAIT_POLL_MS = Number(process.env.REDLINE_WAIT_POLL_MS) || 2000;
+const MONITOR_GRACE_MS = Number(process.env.REDLINE_MONITOR_GRACE_MS ?? 3000);
 
 export const NO_SOURCE = 'no_source';
 
@@ -108,7 +112,7 @@ const TOOLS = [
   {
     name: 'request_review',
     description:
-      'Open a diff as a review round in VS Code. Returns at once; the redline monitor wakes this session when the reviewer submits.',
+      'Open a diff as a review round in VS Code. Returns at once; invoke the redline-connect skill next.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -123,14 +127,18 @@ const TOOLS = [
     name: 'get_review',
     description:
       'Fetch the reviewer comments for a round as markdown and mark them delivered. Defaults to the newest round with undelivered comments. ' +
-      'Then address every thread in payload order: edit the code, or answer with reply_comment(threadId, body) when no edit is warranted, and call resolve_comment(threadId, body) with a one-line closing note for each thread you addressed. ' +
-      'Leave a thread open only when it needs the user to answer, and put your question there with reply_comment. Never author, edit, or delete a human comment. ' +
+      `With wait (seconds, max ${WAIT_MAX_S}) it blocks until the reviewer submits that round, or without roundId until any round has undelivered comments, then returns them; on timeout it says so and you call it again. ` +
+      'Then work through every thread in payload order; each one ends in one of two states. ' +
+      'Done: the change landed in the code, or you declined it with the reason. Close it with resolve_comment(threadId, body) and a one-line note. ' +
+      "Reviewer's turn: the comment is unclear, you want a yes before changing code, or you answered a question. Post with reply_comment(threadId, body) and leave the thread open. " +
+      'Never author, edit, or delete a human comment. ' +
       'Finish by summarising what changed per thread and offering a new round with the same source; do not open one unasked.',
     inputSchema: {
       type: 'object',
       properties: {
         roundId: { type: 'string' },
-        threads: { type: 'array', items: { type: 'string' } }
+        threads: { type: 'array', items: { type: 'string' } },
+        wait: { type: 'integer', minimum: 0, maximum: WAIT_MAX_S }
       }
     }
   },
@@ -142,8 +150,8 @@ const TOOLS = [
   {
     name: 'resolve_comment',
     description:
-      'Mark one review thread resolved once you have addressed it. Call it once per thread you handled after get_review, not in bulk before the edits. ' +
-      'Pass body (markdown, one or two sentences) to leave the reviewer a closing note on what changed; prefer that over a separate reply_comment.',
+      "Close a done thread: the change landed, or you declined it with the reason. One call per thread, after its edit. A thread that is the reviewer's turn takes reply_comment instead. " +
+      'body (markdown, one or two sentences) is the closing note on what changed.',
     inputSchema: {
       type: 'object',
       properties: { threadId: { type: 'string' }, body: { type: 'string' } },
@@ -153,8 +161,8 @@ const TOOLS = [
   {
     name: 'reply_comment',
     description:
-      'Append your answer to one review thread so the reviewer reads it in the diff. Markdown, one to three sentences. ' +
-      'Use it to explain a change, decline a suggestion with the reason, or ask a follow-up question. It does not resolve the thread; call resolve_comment after when the thread is done.',
+      "Post to one thread and hand the turn to the reviewer: a clarifying question, a proposal waiting for a yes, an answer to their question. Markdown, one to three sentences. " +
+      'The thread stays open until they resolve it or reply.',
     inputSchema: {
       type: 'object',
       properties: { threadId: { type: 'string' }, body: { type: 'string' } },
@@ -163,13 +171,15 @@ const TOOLS = [
   },
   {
     name: 'redline_ping',
-    description: 'Find the VS Code window for this directory and ping the redline extension server.',
+    description:
+      'Find the VS Code window for this directory and ping the redline extension server. ' +
+      'The result\'s monitor field says whether a redline monitor wakes this session on submit: armed, absent, or unknown.',
     inputSchema: { type: 'object', properties: {} }
   }
 ];
 
-async function call(pathname, init = {}) {
-  const found = await discover(process.cwd());
+async function call(pathname, init = {}, found) {
+  found ??= await discover(process.cwd());
   const res = await fetch(`http://127.0.0.1:${found.port}${pathname}`, {
     ...init,
     headers: {
@@ -199,9 +209,9 @@ async function call(pathname, init = {}) {
   return body;
 }
 
-async function pendingHint() {
+async function pendingHint(found) {
   try {
-    const pending = await call('/pending');
+    const pending = await call('/pending', {}, found);
     if (!Array.isArray(pending) || pending.length === 0) return null;
     const first = pending[0];
     return (
@@ -213,25 +223,72 @@ async function pendingHint() {
   }
 }
 
-async function withHint(text) {
-  const hint = await pendingHint();
+async function withHint(text, found) {
+  const hint = await pendingHint(found);
   return { content: [{ type: 'text', text: hint ? `${text}\n\n${hint}` : text }] };
+}
+
+// Seen in the wild: a model passing text where the schema says body.
+function commentBody(args) {
+  const value = typeof args.body === 'string' ? args.body : typeof args.text === 'string' ? args.text : '';
+  return value.trim();
+}
+
+// With a roundId: that round's submit. Without: any round holding undelivered comments, so a
+// round fetched earlier never satisfies the wait again.
+async function waitForSubmit(roundId, seconds) {
+  const deadline = Date.now() + seconds * 1000;
+  const window = await discover(process.cwd());
+  for (;;) {
+    if (roundId) {
+      const round = await call(`/rounds/${encodeURIComponent(roundId)}`, {}, window);
+      if (round.submittedAt) return round.id;
+    } else {
+      const pending = await call('/pending', {}, window);
+      if (pending[0]) return pending[0].roundId;
+    }
+    if (Date.now() >= deadline) return null;
+    await sleep(Math.min(WAIT_POLL_MS, Math.max(0, deadline - Date.now())));
+  }
 }
 
 const handlers = {
   async request_review(args) {
-    const summary = await call('/rounds', {
-      method: 'POST',
-      body: JSON.stringify({ source: args.source, title: args.title, notes: args.notes })
-    });
+    const window = await discover(process.cwd());
+    const summary = await call(
+      '/rounds',
+      { method: 'POST', body: JSON.stringify({ source: args.source, title: args.title, notes: args.notes }) },
+      window
+    );
+    const unmatched = summary.unmatchedNoteFiles ?? [];
+    const dropped =
+      unmatched.length > 0
+        ? `Notes on ${unmatched.length} file(s) were dropped because the diff does not contain them: ${unmatched.join(', ')}. ` +
+          `Tell the user, and widen the source (scope "all", or a range) if they belong in the review. `
+        : '';
     return withHint(
-      `Opened round ${summary.id} (${summary.sourceLabel}, ${summary.fileCount} files). ` +
-        'Waiting for review in VS Code.'
+      `Opened round ${summary.id} (${summary.sourceLabel}, ${summary.fileCount} files, ${summary.openThreads} notes). ${dropped}` +
+        `Waiting for review in ${window.ping.appName ?? 'VS Code'}. ${CONNECT_TEXT}`,
+      window
     );
   },
 
   async get_review(args) {
     let roundId = args.roundId;
+    const wait = Math.min(WAIT_MAX_S, Math.max(0, Number(args.wait) || 0));
+    if (wait > 0) {
+      roundId = await waitForSubmit(roundId, wait);
+      if (!roundId) {
+        return {
+          content: [
+            {
+              type: 'text',
+              text: `No review submitted within ${wait}s. Call get_review again with wait to keep waiting.`
+            }
+          ]
+        };
+      }
+    }
     if (!roundId) {
       const pending = await call('/pending');
       roundId = pending[0]?.roundId;
@@ -263,24 +320,37 @@ const handlers = {
   },
 
   async resolve_comment(args) {
+    const body = commentBody(args);
     const thread = await call(`/threads/${encodeURIComponent(args.threadId)}/resolve`, {
       method: 'POST',
-      body: JSON.stringify(args.body ? { body: args.body } : {})
+      body: JSON.stringify(body ? { body } : {})
     });
     return withHint(`Resolved ${thread.id}.`);
   },
 
   async reply_comment(args) {
+    const body = commentBody(args);
+    if (!body) {
+      throw new Error('redline: reply_comment needs body, a non-empty markdown string. Pass it as {threadId, body}.');
+    }
     const thread = await call(`/threads/${encodeURIComponent(args.threadId)}/comments`, {
       method: 'POST',
-      body: JSON.stringify({ body: args.body })
+      body: JSON.stringify({ body })
     });
     return withHint(`Replied in ${thread.id}.`);
   },
 
   async redline_ping() {
     const { port, ping } = await discover(process.cwd());
-    return withHint(JSON.stringify({ port, ...ping }));
+    // The monitor starts on skill invoke, so its first heartbeat can land after this call begins.
+    let armed = monitorArmed();
+    const deadline = Date.now() + MONITOR_GRACE_MS;
+    while (armed === false && Date.now() < deadline) {
+      await sleep(200);
+      armed = monitorArmed();
+    }
+    const monitor = armed === true ? 'armed' : armed === false ? 'absent' : 'unknown';
+    return withHint(JSON.stringify({ port, monitor, ...ping }));
   }
 };
 

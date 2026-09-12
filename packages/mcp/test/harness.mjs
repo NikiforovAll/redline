@@ -1,6 +1,40 @@
+import { spawn } from 'node:child_process';
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const repoRoot = dirname(dirname(dirname(dirname(fileURLToPath(import.meta.url)))));
+const protoServer = join(repoRoot, 'packages', 'extension', 'scripts', 'proto-server.mjs');
+
+/** Starts the extension's stdin-driven proto server; resolves once it has written its lock. */
+export function startProtoServer(cwd, redlineHome) {
+  return new Promise((resolve, reject) => {
+    const child = spawn(process.execPath, [protoServer], {
+      cwd,
+      env: { ...process.env, REDLINE_HOME: redlineHome, REDLINE_REPO_ROOT: cwd },
+      stdio: ['pipe', 'pipe', 'pipe']
+    });
+    const timer = setTimeout(() => {
+      child.kill();
+      reject(new Error('proto-server did not start'));
+    }, 30000);
+    let buffer = '';
+    child.stdout.on('data', (chunk) => {
+      buffer += chunk;
+      const match = buffer.match(/\{[\s\S]*?"lockPath"[\s\S]*?\}/);
+      if (match) {
+        clearTimeout(timer);
+        resolve({
+          child,
+          info: JSON.parse(match[0]),
+          command: (cmd) => child.stdin.write(`${JSON.stringify(cmd)}\n`)
+        });
+      }
+    });
+    child.on('error', reject);
+  });
+}
 
 export function makeRedlineHome(prefix = 'redline-') {
   const root = mkdtempSync(join(tmpdir(), prefix));
@@ -26,7 +60,7 @@ export async function waitFor(predicate, timeoutMs, label, details) {
 }
 
 export function writeGhostLock(dir, folders, options = {}) {
-  const { name = 'ghost.lock', port = 1, token = 'ghost', pid = process.pid } = options;
+  const { name = 'ghost.lock', port = 1, token = 'ghost', pid = process.pid, ...rest } = options;
   const file = join(dir, name);
   writeFileSync(
     file,
@@ -36,7 +70,8 @@ export function writeGhostLock(dir, folders, options = {}) {
       workspaceFolders: folders,
       pid,
       version: '0.0.0',
-      startedAt: new Date().toISOString()
+      startedAt: new Date().toISOString(),
+      ...rest
     })
   );
   return file;

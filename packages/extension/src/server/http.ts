@@ -20,6 +20,8 @@ export interface ServerHooks {
 export interface StartServerOptions {
   workspaceFolders: string[];
   version: string;
+  app?: string;
+  appName?: string;
   store?: ReviewStore;
   hooks?: ServerHooks;
 }
@@ -29,7 +31,8 @@ export interface RunningServer {
   token: string;
   lockPath: string;
   store: ReviewStore;
-  emit: (event: ReviewEvent) => string;
+  /** `delivered` is the number of open SSE streams, one per attached agent, the event was written to. */
+  emit: (event: ReviewEvent) => { id: string; delivered: number };
   close: () => Promise<void>;
 }
 
@@ -79,14 +82,14 @@ export async function startServer(options: StartServerOptions): Promise<RunningS
   const frame = (id: string, event: ReviewEvent): string =>
     `id: ${id}\ndata: ${JSON.stringify(event)}\n\n`;
 
-  const emit = (event: ReviewEvent): string => {
+  const emit = (event: ReviewEvent): { id: string; delivered: number } => {
     const seq = nextSeq++;
     const id = `${instanceId}-${seq}`;
     recent.push({ seq, id, event });
     if (recent.length > REPLAY_LIMIT) recent.shift();
     const text = frame(id, event);
     for (const res of clients) res.write(text);
-    return id;
+    return { id, delivered: clients.size };
   };
 
   const openStream = (req: IncomingMessage, res: ServerResponse): void => {
@@ -125,7 +128,13 @@ export async function startServer(options: StartServerOptions): Promise<RunningS
     const segments = url.split('/').filter((part) => part.length > 0);
 
     if (req.method === 'GET' && url === '/ping') {
-      send(res, 200, { ok: true, version: options.version, workspaceFolders: folders });
+      send(res, 200, {
+        ok: true,
+        version: options.version,
+        app: options.app,
+        appName: options.appName,
+        workspaceFolders: folders
+      });
       return;
     }
     if (req.method === 'GET' && url === '/events') {
@@ -134,7 +143,7 @@ export async function startServer(options: StartServerOptions): Promise<RunningS
     }
     if (req.method === 'POST' && url === '/debug/emit') {
       const body = await readJsonBody(req);
-      send(res, 200, { ok: true, id: emit(body as ReviewEvent) });
+      send(res, 200, { ok: true, ...emit(body as ReviewEvent) });
       return;
     }
     if (req.method === 'POST' && url === '/rounds') {
@@ -251,6 +260,8 @@ export async function startServer(options: StartServerOptions): Promise<RunningS
     token,
     workspaceFolders: folders,
     pid: process.pid,
+    appPid: Number(process.env.VSCODE_PID) || process.ppid,
+    app: options.app,
     version: options.version,
     startedAt: new Date().toISOString()
   });

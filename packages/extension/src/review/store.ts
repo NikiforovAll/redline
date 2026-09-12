@@ -27,6 +27,8 @@ export interface StoredRound {
   submittedAt?: string;
   partial?: boolean;
   notes: Note[];
+  /** Files named by notes that the diff does not contain; those notes seeded no thread. */
+  unmatchedNoteFiles?: string[];
   files: StoreFile[];
   threads: Thread[];
 }
@@ -125,6 +127,16 @@ export function hasHumanComment(thread: Thread): boolean {
   return thread.comments.some((comment) => comment.author === 'human');
 }
 
+/** An open thread with a reviewer comment the agent has not fetched: what submit sends. */
+export function isDraft(thread: Thread): boolean {
+  return !thread.delivered && !thread.resolved && hasHumanComment(thread);
+}
+
+/** A draft the reviewer has handed over: what the agent fetches. Typing a comment alone queues nothing. */
+export function isUndelivered(thread: Thread): boolean {
+  return isDraft(thread) && thread.sent;
+}
+
 function prefixOf(kind: StoreLineKind): string {
   if (kind === 'add') return '+';
   if (kind === 'del') return '-';
@@ -192,6 +204,7 @@ export class ReviewStore {
   private readonly persistence: Persistence;
   private readonly roundById = new Map<string, StoredRound>();
   private readonly threadIndex = new Map<string, { thread: Thread; round: StoredRound }>();
+  private readonly listeners = new Set<() => void>();
 
   constructor(persistence: Persistence) {
     this.persistence = persistence;
@@ -218,6 +231,22 @@ export class ReviewStore {
   private flush(): void {
     this.trim();
     this.persistence.save(this.state);
+    for (const listener of this.listeners) listener();
+  }
+
+  /** Fires after every persisted mutation. Returns the unsubscribe function. */
+  onChange(listener: () => void): () => void {
+    this.listeners.add(listener);
+    return () => this.listeners.delete(listener);
+  }
+
+  removeRound(roundId: string): StoredRound {
+    const round = this.requireRound(roundId);
+    this.state.rounds = this.state.rounds.filter((entry) => entry.id !== roundId);
+    this.roundById.delete(roundId);
+    for (const thread of round.threads) this.threadIndex.delete(thread.id);
+    this.flush();
+    return round;
   }
 
   clear(): void {
@@ -255,9 +284,13 @@ export class ReviewStore {
   }
 
   private seedNotes(round: StoredRound): void {
+    const unmatched = new Set<string>();
     for (const note of round.notes) {
       const file = round.files.find((entry) => entry.path === note.file);
-      if (!file) continue;
+      if (!file) {
+        unmatched.add(note.file);
+        continue;
+      }
       if (note.summary) {
         const fallback: Anchor = {
           file: note.file,
@@ -274,6 +307,7 @@ export class ReviewStore {
         this.pushThread(round, anchor, 'claude', body, 'note');
       }
     }
+    if (unmatched.size > 0) round.unmatchedNoteFiles = [...unmatched];
   }
 
   private pushThread(
@@ -289,6 +323,7 @@ export class ReviewStore {
       anchor,
       comments: [],
       resolved: false,
+      sent: false,
       delivered: false,
       kind
     };
@@ -318,7 +353,18 @@ export class ReviewStore {
   addComment(threadId: string, author: Author, body: string): Thread {
     const thread = this.requireThread(threadId);
     thread.comments.push(this.makeComment(thread.id, author, body));
-    if (author === 'human') thread.delivered = false;
+    if (author === 'human') {
+      thread.delivered = false;
+      thread.sent = false;
+      thread.resolved = false;
+    }
+    this.flush();
+    return thread;
+  }
+
+  markSent(threadId: string): Thread {
+    const thread = this.requireThread(threadId);
+    thread.sent = true;
     this.flush();
     return thread;
   }
@@ -367,7 +413,8 @@ export class ReviewStore {
       fileCount: round.files.length,
       openThreads: round.threads.filter((thread) => !thread.resolved).length,
       createdAt: round.createdAt,
-      submittedAt: round.submittedAt
+      submittedAt: round.submittedAt,
+      unmatchedNoteFiles: round.unmatchedNoteFiles
     };
   }
 
@@ -396,11 +443,12 @@ export class ReviewStore {
     };
   }
 
+  drafts(roundId: string): Thread[] {
+    return this.requireRound(roundId).threads.filter(isDraft);
+  }
+
   undelivered(roundId: string): Thread[] {
-    const round = this.requireRound(roundId);
-    return round.threads.filter(
-      (thread) => !thread.delivered && !thread.resolved && hasHumanComment(thread)
-    );
+    return this.requireRound(roundId).threads.filter(isUndelivered);
   }
 
   pending(): PendingSummary[] {
@@ -421,7 +469,8 @@ export class ReviewStore {
   markSubmitted(roundId: string): SubmitResult {
     const round = this.requireRound(roundId);
     round.submittedAt = new Date().toISOString();
-    const threads = this.undelivered(roundId);
+    const threads = this.drafts(roundId);
+    for (const thread of threads) thread.sent = true;
     this.flush();
     return {
       roundId: round.id,
@@ -434,10 +483,9 @@ export class ReviewStore {
   renderReview(roundId: string, threadIds?: string[]): { markdown: string; delivered: string[] } {
     const round = this.requireRound(roundId);
     const wanted = threadIds && threadIds.length > 0 ? new Set(threadIds) : null;
-    const selected = round.threads.filter((thread) => {
-      if (!hasHumanComment(thread)) return false;
-      return wanted ? wanted.has(thread.id) : !thread.delivered && !thread.resolved;
-    });
+    const selected = round.threads.filter((thread) =>
+      wanted ? wanted.has(thread.id) && hasHumanComment(thread) : isUndelivered(thread)
+    );
 
     const byPath = new Map(round.files.map((file) => [file.path, file]));
     const order = new Map(round.files.map((file, index) => [file.path, index]));
@@ -472,7 +520,7 @@ export class ReviewStore {
       lines.push('No undelivered comments.');
       return { markdown: `${lines.join('\n')}\n`, delivered: [] };
     }
-    lines.push('Resolve each with resolve_comment(id) once addressed.');
+    lines.push("Done thread (change landed, or declined with a reason): resolve_comment(id). Reviewer's turn (question, proposal, answer): reply_comment(id), thread stays open.");
 
     for (const [file, threads] of grouped) {
       lines.push('');

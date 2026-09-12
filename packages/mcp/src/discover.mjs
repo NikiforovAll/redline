@@ -52,7 +52,29 @@ function discoverError(code, message, extra = {}) {
   return err;
 }
 
-export async function discover(cwd = process.cwd()) {
+/**
+ * The app the caller runs under, when the environment says so. `VSCODE_PID` reaches every child of a
+ * window (integrated terminals, the Claude Code extension) and names its main process exactly.
+ * `REDLINE_VSCODE_APP` is the manual override; `TERM_PROGRAM_VERSION` ends in `-insider` inside an
+ * Insiders terminal.
+ */
+function callerWindow(env = process.env) {
+  const appPid = Number(env.VSCODE_PID);
+  let app = env.REDLINE_VSCODE_APP;
+  if (!app && env.TERM_PROGRAM === 'vscode') {
+    app = /-insider/.test(env.TERM_PROGRAM_VERSION ?? '') ? 'vscode-insiders' : 'vscode';
+  }
+  return { appPid: appPid > 0 ? appPid : undefined, app };
+}
+
+/** Same folder in several windows: the caller's own window wins, then its app, then the newest. */
+function affinity(lock, caller) {
+  if (caller.appPid && lock.appPid === caller.appPid) return 2;
+  if (caller.app && lock.app === caller.app) return 1;
+  return 0;
+}
+
+export async function discover(cwd = process.cwd(), env = process.env) {
   const dir = redlineHome();
   const target = normalizeWorkspacePath(cwd);
   const all = readLocks(dir);
@@ -66,18 +88,19 @@ export async function discover(cwd = process.cwd()) {
     );
   }
 
-  let best = null;
-  let bestFolder = null;
-  let bestLen = -1;
-  for (const lock of live) {
-    for (const folder of lock.workspaceFolders) {
-      if (contains(folder, target) && folder.length > bestLen) {
-        best = lock;
-        bestFolder = folder;
-        bestLen = folder.length;
-      }
-    }
-  }
+  const caller = callerWindow(env);
+  const chosen = live
+    .flatMap((lock) =>
+      lock.workspaceFolders.filter((folder) => contains(folder, target)).map((folder) => ({ lock, folder }))
+    )
+    .sort(
+      (a, b) =>
+        b.folder.length - a.folder.length ||
+        affinity(b.lock, caller) - affinity(a.lock, caller) ||
+        String(b.lock.startedAt ?? '').localeCompare(String(a.lock.startedAt ?? ''))
+    )[0];
+  const best = chosen?.lock ?? null;
+  const bestFolder = chosen?.folder ?? null;
 
   if (!best) {
     const windows = live.flatMap((l) => l.workspaceFolders).join(', ');

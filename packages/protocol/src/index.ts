@@ -39,6 +39,8 @@ export interface Thread {
   anchor: Anchor;
   comments: Comment[];
   resolved: boolean;
+  /** The reviewer handed the thread to the agent: round submit or send-thread. A new human comment clears it. */
+  sent: boolean;
   delivered: boolean;
   kind: ThreadKind;
 }
@@ -85,6 +87,8 @@ export interface RoundSummary {
   openThreads: number;
   createdAt: string;
   submittedAt?: string;
+  /** Files named by request_review notes that the diff does not contain. */
+  unmatchedNoteFiles?: string[];
 }
 
 export interface Round extends RoundSummary {
@@ -124,5 +128,9 @@ export interface LockFile {
   token: string;
   workspaceFolders: string[];
   pid: number;
+  /** Pid of the VS Code main process, which children of the window see as `VSCODE_PID`. */
+  appPid?: number;
+  /** `vscode.env.uriScheme`: `vscode` or `vscode-insiders`. */
+  app?: string;
   version: string;
 }

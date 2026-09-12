@@ -32,15 +32,18 @@
       },
       {
         "command": "redline.nextNote",
-        "title": "Redline: Next note"
+        "title": "Redline: Next note",
+        "icon": "$(arrow-down)"
       },
       {
         "command": "redline.previousNote",
-        "title": "Redline: Previous note"
+        "title": "Redline: Previous note",
+        "icon": "$(arrow-up)"
       },
       {
         "command": "redline.clearRounds",
-        "title": "Redline: Clear review rounds"
+        "title": "Redline: Drop all review rounds",
+        "icon": "$(clear-all)"
       },
       {
         "command": "redline.reviewWorktree",
@@ -64,6 +67,55 @@
         "command": "redline.reopenThread",
         "title": "Reopen thread",
         "icon": "$(issue-reopened)"
+      },
+      {
+        "command": "redline.openRoundById",
+        "title": "Open round",
+        "icon": "$(go-to-file)"
+      },
+      {
+        "command": "redline.revealNote",
+        "title": "Go to note"
+      },
+      {
+        "command": "redline.submitRound",
+        "title": "Submit review",
+        "icon": "$(send)"
+      },
+      {
+        "command": "redline.refreshRounds",
+        "title": "Refresh",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "redline.dropRound",
+        "title": "Redline: Drop review round",
+        "icon": "$(trash)"
+      }
+    ],
+    "viewsContainers": {
+      "panel": [
+        {
+          "id": "redline",
+          "title": "Redline",
+          "icon": "$(comment-discussion)"
+        }
+      ]
+    },
+    "views": {
+      "redline": [
+        {
+          "id": "redline.rounds",
+          "name": "Review rounds",
+          "icon": "$(comment-discussion)",
+          "contextualTitle": "Redline review rounds"
+        }
+      ]
+    },
+    "viewsWelcome": [
+      {
+        "view": "redline.rounds",
+        "contents": "No review rounds yet. Ask Claude Code to /redline:redline-tour the changes, or review the working tree here and run /redline:redline-connect in Claude Code to pick up your comments.\n[Review working tree](command:redline.reviewWorktree)"
       }
     ],
     "keybindings": [
@@ -120,6 +172,39 @@
         {
           "command": "redline.reopenThread",
           "when": "false"
+        },
+        {
+          "command": "redline.openRoundById",
+          "when": "false"
+        },
+        {
+          "command": "redline.revealNote",
+          "when": "false"
+        },
+        {
+          "command": "redline.submitRound",
+          "when": "false"
+        },
+        {
+          "command": "redline.refreshRounds",
+          "when": "false"
+        }
+      ],
+      "view/item/context": [
+        {
+          "command": "redline.submitRound",
+          "group": "inline@1",
+          "when": "view == redline.rounds && viewItem == redline.round.open"
+        },
+        {
+          "command": "redline.openRoundById",
+          "group": "inline@2",
+          "when": "view == redline.rounds && viewItem =~ /^redline\\.round\\./"
+        },
+        {
+          "command": "redline.dropRound",
+          "group": "1_manage@1",
+          "when": "view == redline.rounds && viewItem =~ /^redline\\.round\\./"
         }
       ],
       "comments/commentThread/context": [
@@ -131,7 +216,7 @@
         {
           "command": "redline.sendThread",
           "group": "inline@2",
-          "when": "commentController == redline && commentThread =~ /^redline\\.(draft|submitted)\\./"
+          "when": "commentController == redline && !(commentThread =~ /^redline\\.resolved\\./)"
         }
       ],
       "comments/commentThread/title": [
@@ -156,6 +241,46 @@
           "command": "redline.submitReview",
           "group": "navigation",
           "when": "view == workbench.panel.comments"
+        },
+        {
+          "command": "redline.submitRound",
+          "group": "navigation@1",
+          "when": "view == redline.rounds"
+        },
+        {
+          "command": "redline.previousNote",
+          "group": "navigation@2",
+          "when": "view == redline.rounds"
+        },
+        {
+          "command": "redline.nextNote",
+          "group": "navigation@3",
+          "when": "view == redline.rounds"
+        },
+        {
+          "command": "redline.reviewWorktree",
+          "group": "1_actions@1",
+          "when": "view == redline.rounds"
+        },
+        {
+          "command": "redline.openLatestRound",
+          "group": "1_actions@2",
+          "when": "view == redline.rounds"
+        },
+        {
+          "command": "redline.refreshRounds",
+          "group": "2_manage@1",
+          "when": "view == redline.rounds"
+        },
+        {
+          "command": "redline.dropRound",
+          "group": "2_manage@2",
+          "when": "view == redline.rounds"
+        },
+        {
+          "command": "redline.clearRounds",
+          "group": "navigation@4",
+          "when": "view == redline.rounds && redline.hasRounds"
         }
       ]
     },

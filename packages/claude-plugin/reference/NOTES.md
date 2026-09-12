@@ -22,12 +22,12 @@ Use one whenever you point at code outside the hunk: a precedent, a caller, a de
 
 `https://` links work the same way. Command links are dropped, so express an action in words.
 
-## Example
+## Examples
 
-Summary:
+A tour note explains the change (redline-tour). Summary:
 
 ```
-Use `Add` with an analyzer pragma instead of awaiting `AddAsync` per row.
+**[2/5]** Switches the import loop from `AddAsync` to `Add` with an analyzer pragma.
 ```
 
 Rationale:
@@ -35,7 +35,12 @@ Rationale:
 ```
 `AddAsync` only differs from `Add` for value generators that hit the database, and `InvoiceEntity` has none.
 
-- Inside a 500-row loop the await is ceremony with no I/O.
-- [OrderRepository.cs:64](src/Repositories/OrderRepository.cs#L64) handles the same analyzer hit with a pragma and a one-line reason.
-- Matching that precedent documents why the sync call is correct; the await hides it.
+- Inside a 500-row loop the await was ceremony with no I/O.
+- The pragma follows [OrderRepository.cs:64](src/Repositories/OrderRepository.cs#L64), which handles the same analyzer hit with a one-line reason.
+```
+
+An annotate note restates something you already told the user (redline-annotate). Summary:
+
+```
+Kept the sync `Add` call; the pragma carries the reason inline.
 ```

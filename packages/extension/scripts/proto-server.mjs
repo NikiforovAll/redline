@@ -29,6 +29,7 @@ console.log(
 console.log('stand in for the editor by typing one JSON command per line on stdin:');
 console.log('  {"cmd":"thread","roundId":"r1","anchor":{"file":"src/app.ts","side":"right","newLine":2},"body":"rename this"}');
 console.log('  {"cmd":"reply","threadId":"t-1234","body":"keep the guard"}');
+console.log('  {"cmd":"send","threadId":"t-1234"}');
 console.log('  {"cmd":"submit","roundId":"r1"}');
 
 function run(command) {
@@ -42,6 +43,17 @@ function run(command) {
       );
     case 'reply':
       return store.addComment(command.threadId, command.author ?? 'human', command.body);
+    case 'send': {
+      const thread = store.markSent(command.threadId);
+      const eventId = server.emit({
+        type: 'thread_sent',
+        roundId: thread.roundId,
+        threadId: thread.id,
+        file: thread.anchor.file,
+        line: thread.anchor.newLine ?? thread.anchor.oldLine ?? 1
+      });
+      return { threadId: thread.id, roundId: thread.roundId, eventId };
+    }
     case 'submit': {
       const result = store.markSubmitted(command.roundId);
       const eventId = server.emit({

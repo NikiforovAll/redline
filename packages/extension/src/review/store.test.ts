@@ -107,6 +107,22 @@ describe('ids', () => {
   });
 });
 
+describe('removeRound', () => {
+  it('drops the round and its threads, keeps the numbering, notifies listeners', () => {
+    const { store, roundId } = fixture();
+    const threadId = store.rounds()[0].threads[0].id;
+    let changes = 0;
+    store.onChange(() => changes++);
+    store.removeRound(roundId);
+    assert.equal(store.round(roundId), undefined);
+    assert.equal(store.thread(threadId), undefined);
+    assert.equal(store.rounds().length, 0);
+    assert.equal(changes, 1);
+    assert.equal(store.createRound({ source: { kind: 'patch', text: '' } }).id, 'r2');
+    assert.throws(() => store.removeRound('r9'));
+  });
+});
+
 describe('renderReview', () => {
   it('produces candidate-C markdown for two files and three threads', () => {
     const { store, roundId } = fixture();
@@ -124,6 +140,7 @@ describe('renderReview', () => {
     );
     const note = store.round(roundId)!.threads.find((thread) => thread.kind === 'note')!;
     store.addComment(note.id, 'human', 'Fine, but wrap the audit write in try/catch.');
+    store.markSubmitted(roundId);
 
     const { markdown, delivered } = store.renderReview(roundId);
     assert.deepEqual(delivered.sort(), [t1.id, t2.id, note.id].sort());
@@ -132,7 +149,7 @@ describe('renderReview', () => {
       [
         '# Review r1: unstaged changes, 3 comments in 2 files',
         '',
-        'Resolve each with resolve_comment(id) once addressed.',
+        "Done thread (change landed, or declined with a reason): resolve_comment(id). Reviewer's turn (question, proposal, answer): reply_comment(id), thread stays open.",
         '',
         '## src/auth/session.ts',
         '',
@@ -178,6 +195,7 @@ describe('renderReview', () => {
       'human',
       'one'
     );
+    store.markSubmitted(roundId);
     const first = store.renderReview(roundId);
     assert.equal(first.delivered.length, 1);
     assert.ok(!first.markdown.includes('claude (note)'));
@@ -251,6 +269,21 @@ describe('note anchoring', () => {
     });
   });
 
+  it('reports note files the diff does not contain', () => {
+    const store = new ReviewStore(memoryPersistence());
+    const round = store.createRound({
+      source: { kind: 'worktree', scope: 'unstaged' },
+      notes: [
+        { file: 'src/auth/session.ts', summary: 'kept' },
+        { file: 'src/new/file.ts', summary: 'dropped' },
+        { file: 'src/new/file.ts', hunks: [{ newRange: [1, 2], summary: 'dropped too' }] }
+      ]
+    });
+    store.attachFiles(round.id, [sessionFile()]);
+    assert.equal(store.round(round.id)!.threads.length, 1);
+    assert.deepEqual(store.summary(round.id).unmatchedNoteFiles, ['src/new/file.ts']);
+  });
+
   it('anchors a per-file summary note to the first added line of the first hunk', () => {
     const store = new ReviewStore(memoryPersistence());
     const round = store.createRound({
@@ -290,6 +323,7 @@ describe('note anchoring', () => {
     store.attachFiles(round.id, [deletionOnlyFile()]);
     const note = store.round(round.id)!.threads[0];
     store.addComment(note.id, 'human', 'Keep the guard.');
+    store.markSubmitted(round.id);
 
     const { markdown } = store.renderReview(round.id);
     assert.equal(
@@ -297,7 +331,7 @@ describe('note anchoring', () => {
       [
         '# Review r1: unstaged changes, 1 comment in 1 file',
         '',
-        'Resolve each with resolve_comment(id) once addressed.',
+        "Done thread (change landed, or declined with a reason): resolve_comment(id). Reviewer's turn (question, proposal, answer): reply_comment(id), thread stays open.",
         '',
         '## src/legacy/parse.ts',
         '',
@@ -316,7 +350,7 @@ describe('note anchoring', () => {
 });
 
 describe('pending and submit', () => {
-  it('lists undelivered human threads and clears after delivery', () => {
+  it('queues human threads on submit, not when the comment is typed, and clears after delivery', () => {
     const { store, roundId } = fixture();
     assert.deepEqual(store.pending(), []);
     store.addThread(
@@ -331,19 +365,54 @@ describe('pending and submit', () => {
       'human',
       'two'
     );
+    assert.equal(store.drafts(roundId).length, 2);
+    assert.deepEqual(store.pending(), []);
+    assert.match(store.renderReview(roundId).markdown, /No undelivered comments\./);
+
+    const submitted = store.markSubmitted(roundId);
+    assert.equal(submitted.commentCount, 2);
+    assert.equal(submitted.fileCount, 2);
+    assert.ok(store.summary(roundId).submittedAt);
     const pending = store.pending();
     assert.equal(pending.length, 1);
     assert.equal(pending[0].roundId, roundId);
     assert.equal(pending[0].fileCount, 2);
     assert.equal(pending[0].threadIds.length, 2);
 
-    const submitted = store.markSubmitted(roundId);
-    assert.equal(submitted.commentCount, 2);
-    assert.equal(submitted.fileCount, 2);
-    assert.ok(store.summary(roundId).submittedAt);
-
     store.renderReview(roundId);
     assert.deepEqual(store.pending(), []);
+  });
+
+  it('queues a single thread on send, and a new human comment takes it back to draft', () => {
+    const { store, roundId } = fixture();
+    const thread = store.addThread(
+      roundId,
+      { file: 'src/auth/session.ts', side: 'right', newLine: 42 },
+      'human',
+      'one'
+    );
+    store.markSent(thread.id);
+    assert.deepEqual(store.pending()[0]?.threadIds, [thread.id]);
+    store.addComment(thread.id, 'human', 'wait, also this');
+    assert.deepEqual(store.pending(), []);
+    assert.equal(store.drafts(roundId).length, 1);
+  });
+
+  it('reopens a resolved thread when the reviewer replies, and delivers it only on send', () => {
+    const { store, roundId } = fixture();
+    const thread = store.addThread(
+      roundId,
+      { file: 'src/auth/session.ts', side: 'right', newLine: 42 },
+      'human',
+      'one'
+    );
+    store.setResolved(thread.id, true);
+    store.addComment(thread.id, 'human', 'not done yet');
+    assert.equal(store.thread(thread.id)?.resolved, false);
+    assert.deepEqual(store.pending(), []);
+    assert.equal(store.drafts(roundId).length, 1);
+    store.markSent(thread.id);
+    assert.deepEqual(store.pending()[0]?.threadIds, [thread.id]);
   });
 
   it('counts human comments only, and reports the same numbers as the markdown header', () => {
@@ -376,9 +445,13 @@ describe('pending and submit', () => {
       'human',
       'one'
     );
+    store.markSubmitted(roundId);
     store.renderReview(roundId);
     assert.deepEqual(store.pending(), []);
     store.addComment(thread.id, 'human', 'and another thing');
+    assert.deepEqual(store.pending(), []);
+    assert.equal(store.drafts(roundId).length, 1);
+    store.markSubmitted(roundId);
     assert.equal(store.pending().length, 1);
   });
 });
@@ -490,10 +563,10 @@ describe('resolve', () => {
     );
     assert.equal(store.setResolved(thread.id, true).resolved, true);
     assert.equal(store.summary(roundId).openThreads, 1);
-    assert.equal(store.undelivered(roundId).some((entry) => entry.id === thread.id), false);
+    assert.equal(store.drafts(roundId).some((entry) => entry.id === thread.id), false);
     assert.doesNotMatch(store.renderReview(roundId).markdown, /\(resolved\)/);
     store.setResolved(thread.id, false);
-    assert.ok(store.undelivered(roundId).some((entry) => entry.id === thread.id));
+    assert.ok(store.drafts(roundId).some((entry) => entry.id === thread.id));
     store.setResolved(thread.id, true);
     assert.match(store.renderReview(roundId, [thread.id]).markdown, /\(resolved\)/);
   });

@@ -10,6 +10,7 @@ function thread(id: string, file: string, newLine: number, body: string): Thread
     anchor: { file, side: 'right', newLine },
     comments: [{ id: `${id}-c`, threadId: id, author: 'claude', body, createdAt: '' }],
     resolved: false,
+    sent: true,
     delivered: true,
     kind: 'note'
   };

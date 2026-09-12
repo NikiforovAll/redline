@@ -1,7 +1,5 @@
 # Posting a round
 
-Both skills post one round and stop. Acting on the reviewer's comments is not their job: the redline monitor wakes you with a line that says which tool to call, and the tool descriptions carry the rest.
-
 ## Pick the source
 
 Argument given: resolve in this order and say which reading you used.
@@ -26,13 +24,6 @@ No argument:
 
 ## Call request_review
 
-Call `request_review({source, title, notes})`. Report the round id and file count in one line, then end the turn. Do not call `get_review` and do not poll.
+Call `request_review({source, title, notes})` once. Report the round id and file count in one line, then invoke the `redline:redline-connect` skill.
 
-If the tool returns a "no VS Code window" error, print its remediation text verbatim and stop.
-
-If `request_review` returns any result whose text starts with `redline: `, report that text to the user verbatim, do not retry, and end the turn.
-
-## Never
-
-- Never author, edit, or delete human comments.
-- Never call `request_review` in a loop or from a hook.
+A result whose text starts with `redline: ` is a remediation for the user: print it verbatim and end the turn.

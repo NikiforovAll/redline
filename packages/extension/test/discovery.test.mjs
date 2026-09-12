@@ -18,7 +18,7 @@ const { discover } = await import('../../mcp/src/discover.mjs');
 let server;
 
 before(async () => {
-  server = await startServer({ workspaceFolders: [workspace], version: '0.0.1-test' });
+  server = await startServer({ workspaceFolders: [workspace], version: '0.0.1-test', app: 'vscode' });
 });
 
 after(async () => {
@@ -100,6 +100,48 @@ test('reports the no-locks error when the directory is empty', async () => {
     );
   } finally {
     process.env.REDLINE_HOME = previous;
+  }
+});
+
+test('routes the same folder to the window the caller runs in', async () => {
+  const insiders = await startServer({
+    workspaceFolders: [workspace],
+    version: '0.0.1-insiders',
+    app: 'vscode-insiders'
+  });
+  try {
+    const byApp = await discover(workspace, { REDLINE_VSCODE_APP: 'vscode-insiders' });
+    assert.equal(byApp.port, insiders.port);
+    assert.equal(byApp.ping.app, 'vscode-insiders');
+
+    const byTerminal = await discover(workspace, {
+      TERM_PROGRAM: 'vscode',
+      TERM_PROGRAM_VERSION: '1.106.0-insider'
+    });
+    assert.equal(byTerminal.port, insiders.port);
+
+    const newest = await discover(workspace, {});
+    assert.equal(newest.port, insiders.port);
+  } finally {
+    await insiders.close();
+  }
+});
+
+test('prefers the window whose main process is VSCODE_PID over app name', async () => {
+  const ghost = writeGhostLock(redlineHome, [normalizeWorkspacePath(workspace)], {
+    name: 'ghost.lock',
+    appPid: 424242,
+    app: 'vscode-insiders'
+  });
+  try {
+    await assert.rejects(
+      () => discover(workspace, { VSCODE_PID: '424242', REDLINE_VSCODE_APP: 'vscode' }),
+      /lock stale \(ping failed\), remove .*ghost\.lock/
+    );
+    const fallback = await discover(workspace, { VSCODE_PID: '1', REDLINE_VSCODE_APP: 'vscode' });
+    assert.equal(fallback.port, server.port);
+  } finally {
+    rmSync(ghost, { force: true });
   }
 });
 
