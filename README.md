@@ -19,6 +19,21 @@ node ~/.claude/plugins/cache/redline/redline/<version>/scripts/install-extension
 
 The plugin does nothing without the extension. Rerun the script to update it; a plugin update does not update the extension.
 
+## Shortcuts
+
+Every shortcut is a chord behind `Ctrl+Alt+R` (`Cmd+Alt+R` on macOS). Press the leader, release, then the key.
+
+| Keys                        | Command                                       |
+| --------------------------- | --------------------------------------------- |
+| `Ctrl+Alt+R O`              | Open latest round                             |
+| `Ctrl+Alt+R H`              | Open a round from history                     |
+| `Ctrl+Alt+R S`              | Submit review                                 |
+| `Ctrl+Alt+]` / `Ctrl+Alt+[` | Next / previous note (no leader)              |
+| `Ctrl+Alt+R Enter`          | Send the thread under the cursor to the agent |
+| `Ctrl+Alt+R R`              | Resolve or reopen the thread under the cursor |
+
+Thread shortcuts act on the thread nearest the cursor in the active diff, else on the note you last stepped to.
+
 ## Develop
 
 ```sh

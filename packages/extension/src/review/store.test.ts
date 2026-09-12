@@ -480,7 +480,7 @@ describe('round retention', () => {
 });
 
 describe('resolve', () => {
-  it('toggles resolved and keeps the thread deliverable', () => {
+  it('drops a resolved thread from submit and reopening brings it back', () => {
     const { store, roundId } = fixture();
     const thread = store.addThread(
       roundId,
@@ -490,6 +490,11 @@ describe('resolve', () => {
     );
     assert.equal(store.setResolved(thread.id, true).resolved, true);
     assert.equal(store.summary(roundId).openThreads, 1);
-    assert.match(store.renderReview(roundId).markdown, /\(resolved\)/);
+    assert.equal(store.undelivered(roundId).some((entry) => entry.id === thread.id), false);
+    assert.doesNotMatch(store.renderReview(roundId).markdown, /\(resolved\)/);
+    store.setResolved(thread.id, false);
+    assert.ok(store.undelivered(roundId).some((entry) => entry.id === thread.id));
+    store.setResolved(thread.id, true);
+    assert.match(store.renderReview(roundId, [thread.id]).markdown, /\(resolved\)/);
   });
 });

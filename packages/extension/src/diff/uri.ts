@@ -22,6 +22,11 @@ export function toUri(roundId: string, side: UriSide, path: string): string {
   return `${REDLINE_SCHEME}:/${encoded}?${query.toString()}`;
 }
 
+/** Identity of a round's multi-diff editor; VS Code reuses the open editor with the same source. */
+export function roundUri(roundId: string): string {
+  return `${REDLINE_SCHEME}-round:/${encodeURIComponent(roundId)}`;
+}
+
 export function parseQuery(raw: string): ParsedRedlineUri | null {
   const query = new URLSearchParams(raw);
   const roundId = query.get('round');

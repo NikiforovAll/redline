@@ -90,6 +90,12 @@ export function anchorLine(anchor: Anchor, file: StoreFile | undefined, fallback
   return anchor.side === 'left' ? hunk.oldStart : hunk.newStart;
 }
 
+/** 1-based line a thread sits on in its round's file. */
+export function threadLine(round: StoredRound, thread: Thread): number {
+  const file = round.files.find((entry) => entry.path === thread.anchor.file);
+  return anchorLine(thread.anchor, file, 1);
+}
+
 function hunkAt(file: StoreFile | undefined, anchor: Anchor): StoreHunk | undefined {
   if (!file) return undefined;
   const want = anchorLine(anchor, file);
@@ -392,7 +398,9 @@ export class ReviewStore {
 
   undelivered(roundId: string): Thread[] {
     const round = this.requireRound(roundId);
-    return round.threads.filter((thread) => !thread.delivered && hasHumanComment(thread));
+    return round.threads.filter(
+      (thread) => !thread.delivered && !thread.resolved && hasHumanComment(thread)
+    );
   }
 
   pending(): PendingSummary[] {
@@ -428,7 +436,7 @@ export class ReviewStore {
     const wanted = threadIds && threadIds.length > 0 ? new Set(threadIds) : null;
     const selected = round.threads.filter((thread) => {
       if (!hasHumanComment(thread)) return false;
-      return wanted ? wanted.has(thread.id) : !thread.delivered;
+      return wanted ? wanted.has(thread.id) : !thread.delivered && !thread.resolved;
     });
 
     const byPath = new Map(round.files.map((file) => [file.path, file]));

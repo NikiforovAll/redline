@@ -76,6 +76,31 @@
         "command": "redline.previousNote",
         "key": "ctrl+alt+[",
         "mac": "cmd+alt+["
+      },
+      {
+        "command": "redline.openLatestRound",
+        "key": "ctrl+alt+r o",
+        "mac": "cmd+alt+r o"
+      },
+      {
+        "command": "redline.openRound",
+        "key": "ctrl+alt+r h",
+        "mac": "cmd+alt+r h"
+      },
+      {
+        "command": "redline.submitReview",
+        "key": "ctrl+alt+r s",
+        "mac": "cmd+alt+r s"
+      },
+      {
+        "command": "redline.sendThread",
+        "key": "ctrl+alt+r enter",
+        "mac": "cmd+alt+r enter"
+      },
+      {
+        "command": "redline.resolveThread",
+        "key": "ctrl+alt+r r",
+        "mac": "cmd+alt+r r"
       }
     ],
     "menus": {

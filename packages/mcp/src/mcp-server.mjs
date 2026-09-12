@@ -123,8 +123,8 @@ const TOOLS = [
     name: 'get_review',
     description:
       'Fetch the reviewer comments for a round as markdown and mark them delivered. Defaults to the newest round with undelivered comments. ' +
-      'Then address every thread in payload order: edit the code, or answer in prose when no edit is warranted, and call resolve_comment(threadId) for each thread you addressed. ' +
-      'Leave a thread open only when it needs the user to answer. Never author, edit, or delete a human comment. ' +
+      'Then address every thread in payload order: edit the code, or answer with reply_comment(threadId, body) when no edit is warranted, and call resolve_comment(threadId, body) with a one-line closing note for each thread you addressed. ' +
+      'Leave a thread open only when it needs the user to answer, and put your question there with reply_comment. Never author, edit, or delete a human comment. ' +
       'Finish by summarising what changed per thread and offering a new round with the same source; do not open one unasked.',
     inputSchema: {
       type: 'object',
@@ -142,11 +142,23 @@ const TOOLS = [
   {
     name: 'resolve_comment',
     description:
-      'Mark one review thread resolved once you have addressed it. Call it once per thread you handled after get_review, not in bulk before the edits.',
+      'Mark one review thread resolved once you have addressed it. Call it once per thread you handled after get_review, not in bulk before the edits. ' +
+      'Pass body (markdown, one or two sentences) to leave the reviewer a closing note on what changed; prefer that over a separate reply_comment.',
     inputSchema: {
       type: 'object',
-      properties: { threadId: { type: 'string' } },
+      properties: { threadId: { type: 'string' }, body: { type: 'string' } },
       required: ['threadId']
+    }
+  },
+  {
+    name: 'reply_comment',
+    description:
+      'Append your answer to one review thread so the reviewer reads it in the diff. Markdown, one to three sentences. ' +
+      'Use it to explain a change, decline a suggestion with the reason, or ask a follow-up question. It does not resolve the thread; call resolve_comment after when the thread is done.',
+    inputSchema: {
+      type: 'object',
+      properties: { threadId: { type: 'string' }, body: { type: 'string' } },
+      required: ['threadId', 'body']
     }
   },
   {
@@ -252,9 +264,18 @@ const handlers = {
 
   async resolve_comment(args) {
     const thread = await call(`/threads/${encodeURIComponent(args.threadId)}/resolve`, {
-      method: 'POST'
+      method: 'POST',
+      body: JSON.stringify(args.body ? { body: args.body } : {})
     });
     return withHint(`Resolved ${thread.id}.`);
+  },
+
+  async reply_comment(args) {
+    const thread = await call(`/threads/${encodeURIComponent(args.threadId)}/comments`, {
+      method: 'POST',
+      body: JSON.stringify({ body: args.body })
+    });
+    return withHint(`Replied in ${thread.id}.`);
   },
 
   async redline_ping() {

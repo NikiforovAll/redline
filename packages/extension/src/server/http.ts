@@ -14,6 +14,7 @@ import {
 export interface ServerHooks {
   onRoundCreated?: (round: StoredRound) => void | Promise<void>;
   onThreadResolved?: (threadId: string) => void;
+  onThreadReplied?: (threadId: string) => void;
 }
 
 export interface StartServerOptions {
@@ -186,21 +187,31 @@ export async function startServer(options: StartServerOptions): Promise<RunningS
       send(res, 200, store.renderReview(round.id, threads));
       return;
     }
-    if (
-      req.method === 'POST' &&
-      segments[0] === 'threads' &&
-      segments.length === 3 &&
-      segments[2] === 'resolve'
-    ) {
+    if (req.method === 'POST' && segments[0] === 'threads' && segments.length === 3) {
       const threadId = decodeURIComponent(segments[1]);
       if (!store.thread(threadId)) {
         send(res, 404, { error: `redline: unknown thread ${threadId}` });
         return;
       }
-      const resolved = store.setResolved(threadId, true);
-      options.hooks?.onThreadResolved?.(threadId);
-      send(res, 200, resolved);
-      return;
+      const payload = (await readJsonBody(req).catch(() => null)) as { body?: unknown } | null;
+      const body = typeof payload?.body === 'string' ? payload.body.trim() : '';
+      if (segments[2] === 'resolve') {
+        if (body.length > 0) store.addComment(threadId, 'claude', body);
+        const resolved = store.setResolved(threadId, true);
+        options.hooks?.onThreadResolved?.(threadId);
+        send(res, 200, resolved);
+        return;
+      }
+      if (segments[2] === 'comments') {
+        if (body.length === 0) {
+          send(res, 400, { error: 'redline: reply body must be a non-empty string' });
+          return;
+        }
+        const thread = store.addComment(threadId, 'claude', body);
+        options.hooks?.onThreadReplied?.(threadId);
+        send(res, 200, thread);
+        return;
+      }
     }
     send(res, 404, { error: 'not found' });
   };

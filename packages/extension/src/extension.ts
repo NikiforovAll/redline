@@ -60,7 +60,11 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     store,
     hooks: {
       onRoundCreated: (round) => ui.materialize(round),
-      onThreadResolved: (threadId) => ui.refreshThread(threadId)
+      onThreadResolved: (threadId) => ui.refreshThread(threadId),
+      onThreadReplied: (threadId) => {
+        ui.refreshThread(threadId);
+        ui.expandThread(threadId);
+      }
     }
   }).then(
     (running) => {

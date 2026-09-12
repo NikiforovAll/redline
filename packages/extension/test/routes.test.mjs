@@ -162,6 +162,57 @@ test('POST /threads/{id}/resolve 404s for an unknown thread', async () => {
   assert.match(body.error, /unknown thread/);
 });
 
+test('POST /threads/{id}/comments appends a claude reply and leaves the thread open', async () => {
+  const thread = store.addThread(
+    'r1',
+    { file: 'src/app.ts', side: 'right', newLine: 2 },
+    'human',
+    'why this?'
+  );
+  const { status, body } = await api(`/threads/${thread.id}/comments`, {
+    method: 'POST',
+    body: JSON.stringify({ body: 'Because the caller needs it.' })
+  });
+  assert.equal(status, 200);
+  assert.equal(body.comments.length, 2);
+  assert.equal(body.comments[1].author, 'claude');
+  assert.equal(body.comments[1].body, 'Because the caller needs it.');
+  assert.equal(body.resolved, false);
+  assert.equal(store.thread(thread.id).comments.length, 2);
+});
+
+test('POST /threads/{id}/resolve with a body appends the reply and resolves in one call', async () => {
+  const thread = store.addThread(
+    'r1',
+    { file: 'src/app.ts', side: 'right', newLine: 2 },
+    'human',
+    'rename this'
+  );
+  const { status, body } = await api(`/threads/${thread.id}/resolve`, {
+    method: 'POST',
+    body: JSON.stringify({ body: 'Renamed to `parseQuote`.' })
+  });
+  assert.equal(status, 200);
+  assert.equal(body.resolved, true);
+  assert.equal(body.comments.length, 2);
+  assert.equal(body.comments[1].author, 'claude');
+});
+
+test('POST /threads/{id}/comments rejects an empty body', async () => {
+  const thread = store.addThread(
+    'r1',
+    { file: 'src/app.ts', side: 'right', newLine: 2 },
+    'human',
+    'needs an answer'
+  );
+  const { status, body } = await api(`/threads/${thread.id}/comments`, {
+    method: 'POST',
+    body: JSON.stringify({ body: '   ' })
+  });
+  assert.equal(status, 400);
+  assert.match(body.error, /non-empty/);
+});
+
 test('routes stay behind the bearer token', async () => {
   const res = await fetch(`http://127.0.0.1:${server.port}/rounds`);
   assert.equal(res.status, 401);
