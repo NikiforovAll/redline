@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
+  "name": "redline",
+  "displayName": "redline",
+  "version": "0.0.1",
+  "description": "Open a multi-file diff review in VS Code, then wake Claude with the reviewer's comments.",
+  "author": { "name": "nikiforovall" },
+  "homepage": "https://github.com/nikiforovall/redline#readme",
+  "repository": "https://github.com/nikiforovall/redline.git",
+  "license": "MIT",
+  "keywords": ["review", "diff", "vscode", "mcp"],
+  "skills": "./skills/",
+  "mcpServers": {
+    "redline": {
+      "command": "node",
+      "args": ["${CLAUDE_PLUGIN_ROOT}/scripts/launch.mjs", "server"]
+    }
+  },
+  "experimental": {
+    "monitors": "./monitors.json"
+  }
+}

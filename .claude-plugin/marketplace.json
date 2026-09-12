@@ -1,0 +1,13 @@
+{
+  "name": "redline",
+  "owner": {
+    "name": "NikiforovAll"
+  },
+  "plugins": [
+    {
+      "name": "redline",
+      "source": "./packages/claude-plugin",
+      "description": "Review Claude's diffs in VS Code. Open a multi-file diff with Claude's notes attached, leave inline comments, and wake the session with them. Needs the redline VS Code extension."
+    }
+  ]
+}

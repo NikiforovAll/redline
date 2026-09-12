@@ -1,0 +1,13 @@
+{
+  "name": "@redline/claude-plugin",
+  "version": "0.0.1",
+  "private": true,
+  "description": "Claude Code plugin for redline: the /redline-annotate skill, the review monitor, and the MCP server launcher.",
+  "type": "module",
+  "scripts": {
+    "test": "node --test \"test/**/*.test.mjs\""
+  },
+  "dependencies": {
+    "@nikiforovall/redline-mcp": "*"
+  }
+}

@@ -1,0 +1,136 @@
+{
+  "name": "redline-extension",
+  "displayName": "redline",
+  "description": "Review agent diffs in VS Code and send comments back to Claude Code.",
+  "version": "0.0.1",
+  "private": true,
+  "publisher": "nikiforovall",
+  "engines": {
+    "vscode": "^1.90.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "main": "./out/extension.js",
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "contributes": {
+    "commands": [
+      {
+        "command": "redline.hello",
+        "title": "redline: Hello"
+      },
+      {
+        "command": "redline.submitReview",
+        "title": "redline: Submit review",
+        "icon": "$(check-all)"
+      },
+      {
+        "command": "redline.openRound",
+        "title": "redline: Open review round"
+      },
+      {
+        "command": "redline.clearRounds",
+        "title": "redline: Clear review rounds"
+      },
+      {
+        "command": "redline.reviewWorktree",
+        "title": "redline: Review working tree"
+      },
+      {
+        "command": "redline.reply",
+        "title": "Comment"
+      },
+      {
+        "command": "redline.sendThread",
+        "title": "Send to Claude",
+        "icon": "$(send)"
+      },
+      {
+        "command": "redline.resolveThread",
+        "title": "Mark resolved",
+        "icon": "$(pass)"
+      },
+      {
+        "command": "redline.reopenThread",
+        "title": "Reopen thread",
+        "icon": "$(issue-reopened)"
+      }
+    ],
+    "menus": {
+      "commandPalette": [
+        {
+          "command": "redline.reply",
+          "when": "false"
+        },
+        {
+          "command": "redline.sendThread",
+          "when": "false"
+        },
+        {
+          "command": "redline.resolveThread",
+          "when": "false"
+        },
+        {
+          "command": "redline.reopenThread",
+          "when": "false"
+        }
+      ],
+      "comments/commentThread/context": [
+        {
+          "command": "redline.reply",
+          "group": "inline@1",
+          "when": "commentController == redline"
+        },
+        {
+          "command": "redline.sendThread",
+          "group": "inline@2",
+          "when": "commentController == redline && commentThread =~ /^redline\\.(draft|submitted)$/"
+        }
+      ],
+      "comments/commentThread/title": [
+        {
+          "command": "redline.sendThread",
+          "group": "navigation@1",
+          "when": "commentController == redline && commentThread =~ /^redline\\.(draft|submitted)$/"
+        },
+        {
+          "command": "redline.resolveThread",
+          "group": "navigation@2",
+          "when": "commentController == redline && commentThread =~ /^redline\\.(note|draft|submitted|sent)$/"
+        },
+        {
+          "command": "redline.reopenThread",
+          "group": "navigation@2",
+          "when": "commentController == redline && commentThread == redline.resolved"
+        }
+      ],
+      "view/title": [
+        {
+          "command": "redline.submitReview",
+          "group": "navigation",
+          "when": "view == workbench.panel.comments"
+        }
+      ]
+    }
+  },
+  "scripts": {
+    "build": "node esbuild.mjs",
+    "watch": "node esbuild.mjs --watch",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "node --test \"test/**/*.test.mjs\" \"src/**/*.test.ts\"",
+    "proto-server": "node scripts/proto-server.mjs"
+  },
+  "dependencies": {
+    "@nikiforovall/redline-mcp": "*",
+    "@redline/protocol": "*"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "@types/vscode": "^1.90.0",
+    "esbuild": "^0.24.0",
+    "typescript": "^5.6.0",
+    "vscode-uri": "^3.0.8"
+  }
+}

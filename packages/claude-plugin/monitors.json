@@ -1,0 +1,8 @@
+[
+  {
+    "name": "redline-review",
+    "description": "redline review event",
+    "command": "node \"${CLAUDE_PLUGIN_ROOT}/scripts/launch.mjs\" monitor",
+    "when": "on-skill-invoke:redline:redline-annotate"
+  }
+]

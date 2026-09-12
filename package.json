@@ -1,0 +1,18 @@
+{
+  "name": "redline",
+  "private": true,
+  "version": "0.0.1",
+  "description": "Agent review loop: Claude Code opens a multi-file diff review in VS Code and wakes with your comments.",
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "build": "npm run build -w @redline/protocol && npm run build -w redline-extension",
+    "test": "npm test -w redline-extension && npm test -w @nikiforovall/redline-mcp && npm test -w @redline/claude-plugin",
+    "install:local": "node scripts/install-local.mjs",
+    "release": "node scripts/release.mjs"
+  },
+  "devDependencies": {
+    "@vscode/vsce": "^3.9.2"
+  }
+}
