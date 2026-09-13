@@ -1,18 +1,27 @@
 {
   "name": "@nikiforovall/redline-mcp",
-  "version": "0.0.1",
+  "version": "0.1.0",
   "description": "MCP server and review monitor for redline: discovers a VS Code window running the redline extension and relays review rounds to Claude Code.",
   "type": "module",
   "license": "MIT",
   "author": { "name": "nikiforovall" },
   "homepage": "https://github.com/nikiforovall/redline#readme",
-  "repository": "https://github.com/nikiforovall/redline.git",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/nikiforovall/redline.git",
+    "directory": "packages/mcp"
+  },
+  "bugs": {
+    "url": "https://github.com/nikiforovall/redline/issues"
+  },
+  "keywords": ["mcp", "code review", "diff", "vscode", "claude code"],
   "engines": { "node": ">=18" },
   "bin": {
-    "redline-mcp": "./src/cli.mjs"
+    "redline-mcp": "src/cli.mjs"
   },
   "files": [
-    "src"
+    "src",
+    "LICENSE"
   ],
   "publishConfig": {
     "access": "public"

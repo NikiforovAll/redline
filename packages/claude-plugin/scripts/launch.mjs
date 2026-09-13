@@ -18,8 +18,7 @@ if (!ENTRIES[name]) {
 
 const here = dirname(fileURLToPath(import.meta.url));
 
-const pluginVersion = () =>
-  JSON.parse(readFileSync(join(here, '..', '.claude-plugin', 'plugin.json'), 'utf8')).version;
+const pinnedVersion = () => JSON.parse(readFileSync(join(here, 'pin.json'), 'utf8'))[PACKAGE];
 
 function binVersion() {
   const [file, args, extra] = command(BIN, ['--version']);
@@ -50,7 +49,7 @@ const checkout = resolve(here, '..', '..', 'mcp', 'src', ENTRIES[name]);
 if (existsSync(checkout)) {
   launch(process.execPath, [checkout, ...rest], 'checkout');
 } else {
-  const expected = pluginVersion();
+  const expected = pinnedVersion();
   const found = binVersion();
   if (found) {
     if (found !== expected) {

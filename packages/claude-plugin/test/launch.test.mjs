@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
-import { chmodSync, cpSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, cpSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { delimiter, dirname, join } from 'node:path';
 import test, { after } from 'node:test';
@@ -11,6 +11,7 @@ const pluginRoot = dirname(here);
 const launcher = join(pluginRoot, 'scripts', 'launch.mjs');
 const cli = join(pluginRoot, '..', 'mcp', 'src', 'cli.mjs');
 const win = process.platform === 'win32';
+const pinnedVersion = JSON.parse(readFileSync(join(pluginRoot, 'scripts', 'pin.json'), 'utf8'))['@nikiforovall/redline-mcp'];
 
 const INITIALIZE = `${JSON.stringify({
   jsonrpc: '2.0',
@@ -101,7 +102,7 @@ test('installed plugin execs redline-mcp from PATH', async () => {
   assert.equal(serverInfoFrom(stdout)?.name, 'redline');
 });
 
-test('installed plugin falls through to npx pinned to the plugin version', async () => {
+test('installed plugin falls through to npx pinned to the version in pin.json', async () => {
   const script = installedLauncher;
   const path = win ? `${dirname(process.execPath)}${delimiter}C:\\Windows\\System32` : dirname(process.execPath);
   const { stderr } = await run(['server'], {
@@ -109,5 +110,5 @@ test('installed plugin falls through to npx pinned to the plugin version', async
     script,
     env: { PATH: path, Path: path, npm_config_registry: 'http://127.0.0.1:9/' }
   });
-  assert.match(stderr, /via npx @nikiforovall\/redline-mcp@0\.0\.1/);
+  assert.match(stderr, new RegExp(`via npx @nikiforovall/redline-mcp@${pinnedVersion.replaceAll('.', '\\.')}`));
 });

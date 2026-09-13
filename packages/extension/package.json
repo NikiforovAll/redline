@@ -2,14 +2,29 @@
   "name": "redline-extension",
   "displayName": "Redline",
   "description": "Review agent diffs in VS Code and send comments back to Claude Code.",
-  "version": "0.0.1",
-  "private": true,
+  "version": "0.1.0",
   "publisher": "nikiforovall",
+  "license": "MIT",
   "icon": "media/icon.png",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/nikiforovall/redline.git"
+  },
+  "homepage": "https://github.com/nikiforovall/redline#readme",
+  "bugs": {
+    "url": "https://github.com/nikiforovall/redline/issues"
+  },
+  "keywords": ["code review", "diff", "claude code", "ai", "agent"],
+  "galleryBanner": {
+    "color": "#1b1b1f",
+    "theme": "dark"
+  },
   "engines": {
     "vscode": "^1.96.0"
   },
   "categories": [
+    "AI",
+    "SCM Providers",
     "Other"
   ],
   "main": "./out/extension.js",

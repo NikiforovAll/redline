@@ -16,16 +16,15 @@ export function run(file, args, cwd = repoRoot) {
   execFileSync(cmd, argv, { cwd, stdio: 'inherit', ...extra });
 }
 
-const MANIFESTS = {
-  extension: ['packages', 'extension', 'package.json'],
-  mcp: ['packages', 'mcp', 'package.json'],
-  plugin: ['packages', 'claude-plugin', '.claude-plugin', 'plugin.json']
-};
+const MCP = '@nikiforovall/redline-mcp';
 
+/** The extension and the server ship together under one version; the plugin has its own and only pins the server. */
 export function version() {
-  const found = Object.fromEntries(
-    Object.entries(MANIFESTS).map(([name, path]) => [name, readJson(...path).version])
-  );
+  const found = {
+    extension: readJson('packages', 'extension', 'package.json').version,
+    mcp: readJson('packages', 'mcp', 'package.json').version,
+    'plugin pin': readJson('packages', 'claude-plugin', 'scripts', 'pin.json')[MCP]
+  };
   const versions = new Set(Object.values(found));
   if (versions.size !== 1) {
     const list = Object.entries(found).map(([name, v]) => `${name} ${v}`).join(', ');

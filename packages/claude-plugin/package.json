@@ -1,7 +1,8 @@
 {
   "name": "@redline/claude-plugin",
-  "version": "0.0.1",
+  "version": "0.0.0",
   "private": true,
+  "license": "MIT",
   "description": "Claude Code plugin for redline: the /redline-annotate and /redline-tour skills, the review monitor, and the MCP server launcher.",
   "type": "module",
   "scripts": {

@@ -2,7 +2,7 @@
   "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
   "name": "redline",
   "displayName": "redline",
-  "version": "0.0.1",
+  "version": "0.1.0",
   "description": "Open a multi-file diff review in VS Code, then wake Claude with the reviewer's comments.",
   "author": { "name": "nikiforovall" },
   "homepage": "https://github.com/nikiforovall/redline#readme",

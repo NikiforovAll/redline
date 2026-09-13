@@ -1,7 +1,8 @@
 {
   "name": "@redline/protocol",
-  "version": "0.0.1",
+  "version": "0.0.0",
   "private": true,
+  "license": "MIT",
   "description": "Shared types for the redline VS Code extension and Claude Code plugin.",
   "type": "module",
   "main": "./dist/index.js",

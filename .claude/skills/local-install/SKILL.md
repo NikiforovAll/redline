@@ -17,7 +17,7 @@ Install both halves from the checkout, verify each, and name the restarts.
 npm run install:local -- --insiders [--profile <name>]
 ```
 
-Drop `--insiders` for `--stable`. A non-zero exit on differing package versions ends the run: report the script's line and stop, because the plugin half installs the same version.
+Drop `--insiders` for `--stable`. A non-zero exit on differing versions (extension, server, or the plugin's `scripts/pin.json`) ends the run: report the script's line and stop.
 
 Done when `code-insiders [--profile <name>] --list-extensions --show-versions` lists `nikiforovall.redline-extension@<version>` with the version from `packages/extension/package.json`.
 

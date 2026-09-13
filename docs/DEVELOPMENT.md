@@ -91,8 +91,8 @@ Do not run both at once for the same session: `--plugin-dir` and the installed p
 `scripts/launch.mjs` is the plugin's only entrypoint for both the MCP server and the monitor. It resolves the server in this order and says which branch it took on stderr:
 
 1. `packages/mcp/src` beside the plugin: a checkout under `--plugin-dir`.
-2. `redline-mcp` on PATH: `npm link` here, or a user's `npm i -g @nikiforovall/redline-mcp`. It runs `redline-mcp --version` first and warns when that differs from `plugin.json`, since a global install is whatever the user installed.
-3. `npx -y @nikiforovall/redline-mcp@<plugin.json version>`: a fresh install with nothing else set up. Downloads once into the npm cache. Until the package is published this branch fails, and Claude Code shows the npx error.
+2. `redline-mcp` on PATH: `npm link` here, or a user's `npm i -g @nikiforovall/redline-mcp`. It runs `redline-mcp --version` first and warns when that differs from the version in `scripts/pin.json`, since a global install is whatever the user installed.
+3. `npx -y @nikiforovall/redline-mcp@<pin.json version>`: a fresh install with nothing else set up. Downloads once into the npm cache. Until the package is published this branch fails, and Claude Code shows the npx error.
 
 Claude Code started from the desktop app can have a shorter PATH than your shell. If the launcher reports `via npx` when you expected the link, that is why; start Claude from a terminal or install globally with the same npm that is on that PATH.
 

@@ -7,6 +7,7 @@ import {
 } from '@modelcontextprotocol/sdk/types.js';
 import { discover, DISCOVER_NO_LOCK, DISCOVER_STALE_LOCK } from './discover.mjs';
 import { CONNECT_TEXT, monitorArmed, plural, sleep, WAIT_MAX_S } from './wake.mjs';
+import { VERSION } from './version.mjs';
 
 const WAIT_POLL_MS = Number(process.env.REDLINE_WAIT_POLL_MS) || 2000;
 const MONITOR_GRACE_MS = Number(process.env.REDLINE_MONITOR_GRACE_MS ?? 3000);
@@ -387,7 +388,7 @@ const handlers = {
 };
 
 const server = new Server(
-  { name: 'redline', version: '0.0.1' },
+  { name: 'redline', version: VERSION },
   { capabilities: { tools: {} } }
 );
 

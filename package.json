@@ -1,7 +1,8 @@
 {
   "name": "redline",
   "private": true,
-  "version": "0.0.1",
+  "version": "0.0.0",
+  "license": "MIT",
   "description": "Agent review loop: Claude Code opens a multi-file diff review in VS Code and wakes with your comments.",
   "workspaces": [
     "packages/*"
@@ -12,6 +13,7 @@
     "install:local": "node scripts/install-local.mjs",
     "playground": "node scripts/playground.mjs",
     "release": "node scripts/release.mjs",
+    "check:versions": "node scripts/check-versions.mjs",
     "docs:dev": "vitepress dev docs",
     "docs:build": "vitepress build docs",
     "docs:preview": "vitepress preview docs"

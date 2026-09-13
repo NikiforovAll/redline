@@ -17,6 +17,8 @@ const repo =
   process.env.REDLINE_REPO ??
   manifest.repository?.replace(/^https:\/\/github\.com\//, '').replace(/\.git$/, '');
 
+const pinned = JSON.parse(readFileSync(join(here, 'pin.json'), 'utf8'))['@nikiforovall/redline-mcp'];
+
 const profile = vscodeProfile();
 const code = vscodeCli();
 
@@ -43,41 +45,40 @@ try {
   fail(`the "${code}" command is not on PATH. In VS Code run "Shell Command: Install '${code}' command in PATH".`);
 }
 
-let latest;
+const wanted = pinned;
 try {
-  latest = JSON.parse(capture('gh', ['release', 'view', '--repo', repo, '--json', 'tagName']))
-    .tagName.replace(/^v/, '');
+  capture('gh', ['release', 'view', `v${wanted}`, '--repo', repo, '--json', 'tagName']);
 } catch {
   fail(
-    `could not read the latest release of ${repo}. Install the GitHub CLI and run "gh auth login" ` +
+    `could not read release v${wanted} of ${repo}. Install the GitHub CLI and run "gh auth login" ` +
       'with access to the repository.'
   );
 }
 
-if (installed === latest) {
+if (installed === wanted) {
   console.log(`redline: extension ${installed} is current.`);
   process.exit(0);
 }
 
 console.log(
   installed
-    ? `redline: updating the extension ${installed} -> ${latest}`
-    : `redline: installing the extension ${latest}`
+    ? `redline: updating the extension ${installed} -> ${wanted}`
+    : `redline: installing the extension ${wanted}`
 );
 
 const staging = mkdtempSync(join(tmpdir(), 'redline-vsix-'));
 try {
   exec(
     'gh',
-    ['release', 'download', `v${latest}`, '--repo', repo, '--pattern', '*.vsix', '--dir', staging],
+    ['release', 'download', `v${wanted}`, '--repo', repo, '--pattern', '*.vsix', '--dir', staging],
     { stdio: 'inherit' }
   );
   const vsix = readdirSync(staging).find((name) => name.endsWith('.vsix'));
-  if (!vsix) fail(`release v${latest} has no .vsix asset.`);
+  if (!vsix) fail(`release v${wanted} has no .vsix asset.`);
   exec(code, [...profile, '--install-extension', join(staging, vsix), '--force'], {
     stdio: 'inherit'
   });
-  console.log(`redline: extension ${latest} installed via ${code}. Reload VS Code to activate it.`);
+  console.log(`redline: extension ${wanted} installed via ${code}. Reload VS Code to activate it.`);
 } finally {
   rmSync(staging, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 });
 }

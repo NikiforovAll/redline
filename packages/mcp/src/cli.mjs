@@ -1,16 +1,12 @@
 #!/usr/bin/env node
-import { readFileSync } from 'node:fs';
-import { dirname, join } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { VERSION } from './version.mjs';
 
 const ENTRIES = { server: './mcp-server.mjs', monitor: './monitor.mjs' };
 
 const name = process.argv[2];
 
 if (name === '--version') {
-  const here = dirname(fileURLToPath(import.meta.url));
-  const { version } = JSON.parse(readFileSync(join(here, '..', 'package.json'), 'utf8'));
-  process.stdout.write(`${version}\n`);
+  process.stdout.write(`${VERSION}\n`);
   process.exit(0);
 }
 
