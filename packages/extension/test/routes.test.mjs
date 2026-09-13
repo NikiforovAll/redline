@@ -83,6 +83,8 @@ test('POST /rounds creates a round, runs the hook, and returns the summary', asy
   assert.equal(body.id, 'r1');
   assert.equal(body.sourceLabel, 'unstaged changes');
   assert.equal(body.fileCount, 1);
+  assert.equal(body.outcome, 'opened');
+  assert.equal(body.refreshCount, 0);
   assert.deepEqual(created, ['r1']);
 });
 
@@ -125,7 +127,7 @@ test('/pending is empty until the reviewer submits', async () => {
 
 test('GET /rounds/{id}/review returns markdown and marks threads delivered', async () => {
   const { body } = await api('/rounds/r1/review');
-  assert.match(body.markdown, /^# Review r1: unstaged changes, 1 comment in 1 file/);
+  assert.match(body.markdown, /^# Review: unstaged changes, 1 comment in 1 file/);
   assert.match(body.markdown, /\*\*human:\*\* rename this/);
   assert.equal(body.delivered.length, 1);
   assert.deepEqual((await api('/pending')).body, []);
@@ -213,6 +215,138 @@ test('POST /threads/{id}/comments rejects an empty body', async () => {
   });
   assert.equal(status, 400);
   assert.match(body.error, /non-empty/);
+});
+
+test('POST /debug/threads seeds a reviewer thread and runs the hook', async () => {
+  const seeded = [];
+  const other = await startServer({
+    workspaceFolders: [workspace],
+    version: '0.0.1-test',
+    store,
+    hooks: { onThreadSeeded: (id) => seeded.push(id) }
+  });
+  try {
+    const res = await fetch(`http://127.0.0.1:${other.port}/debug/threads`, {
+      method: 'POST',
+      headers: { authorization: `Bearer ${other.token}`, 'content-type': 'application/json' },
+      body: JSON.stringify({
+        roundId: 'r1',
+        anchor: { file: 'src/app.ts', side: 'right', newLine: 2 },
+        body: 'please rename this'
+      })
+    });
+    const body = await res.json();
+    assert.equal(res.status, 200);
+    assert.equal(body.kind, 'human');
+    assert.equal(body.comments[0].author, 'human');
+    assert.equal(body.comments[0].body, 'please rename this');
+    assert.deepEqual(seeded, [body.id]);
+    assert.ok(store.drafts('r1').some((thread) => thread.id === body.id));
+
+    const bad = await fetch(`http://127.0.0.1:${other.port}/debug/threads`, {
+      method: 'POST',
+      headers: { authorization: `Bearer ${other.token}`, 'content-type': 'application/json' },
+      body: JSON.stringify({ roundId: 'r1', anchor: { file: 'src/app.ts' }, body: 'x' })
+    });
+    assert.equal(bad.status, 400);
+  } finally {
+    await other.close();
+  }
+});
+
+test('POST /debug/rounds/drop removes the round through the hook', async () => {
+  const dropped = [];
+  const other = await startServer({
+    workspaceFolders: [workspace],
+    version: '0.0.1-test',
+    store,
+    hooks: {
+      onRoundCreated: (round) => store.attachFiles(round.id, [file]),
+      onRoundDropped: (id) => {
+        dropped.push(id);
+        store.removeRound(id);
+      }
+    }
+  });
+  const post = (path, payload) =>
+    fetch(`http://127.0.0.1:${other.port}${path}`, {
+      method: 'POST',
+      headers: { authorization: `Bearer ${other.token}`, 'content-type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+  try {
+    const round = await post('/rounds', { source: { kind: 'patch', text: 'x' } }).then((res) => res.json());
+    const res = await post('/debug/rounds/drop', { roundId: round.id });
+    assert.equal(res.status, 200);
+    assert.deepEqual(dropped, [round.id]);
+    assert.equal(store.round(round.id), undefined);
+    assert.equal((await post('/debug/rounds/drop', { roundId: round.id })).status, 404);
+  } finally {
+    await other.close();
+  }
+});
+
+test('POST /rounds on the source of an open round refreshes it through the hook instead of opening another', async () => {
+  const refreshed = [];
+  const edited = {
+    ...file,
+    hunks: [
+      {
+        oldStart: 1,
+        oldLines: 2,
+        newStart: 1,
+        newLines: 3,
+        lines: [
+          { kind: 'context', content: 'header' },
+          { kind: 'add', content: 'a new first line' },
+          { kind: 'add', content: 'added line' }
+        ]
+      }
+    ]
+  };
+  const other = await startServer({
+    workspaceFolders: [workspace],
+    version: '0.0.1-test',
+    store,
+    hooks: {
+      onRoundCreated: (round) => store.attachFiles(round.id, [file]),
+      onRoundRefresh: (round, request) => {
+        refreshed.push(request.title);
+        return store.refreshRound(round.id, { files: request.title === 'empty' ? [] : [edited], title: request.title, notes: request.notes });
+      }
+    }
+  });
+  const post = (payload) =>
+    fetch(`http://127.0.0.1:${other.port}/rounds`, {
+      method: 'POST',
+      headers: { authorization: `Bearer ${other.token}`, 'content-type': 'application/json' },
+      body: JSON.stringify(payload)
+    }).then((res) => res.json());
+  try {
+    const opened = await post({ source: { kind: 'worktree', scope: 'staged' }, title: 'first' });
+    assert.equal(opened.outcome, 'opened');
+    const thread = store.addThread(opened.id, { file: 'src/app.ts', side: 'right', newLine: 2 }, 'human', 'moves');
+    const again = await post({
+      source: { kind: 'worktree', scope: 'staged' },
+      title: 'second',
+      notes: [{ file: 'src/app.ts', summary: 'appended' }]
+    });
+    assert.equal(again.id, opened.id);
+    assert.equal(again.outcome, 'refreshed');
+    assert.equal(again.title, 'second');
+    assert.equal(again.refreshCount, 1);
+    assert.equal(again.detachedThreads, 0);
+    assert.equal(store.thread(thread.id).anchor.newLine, 3);
+    assert.deepEqual(refreshed, ['second']);
+    const kept = await post({ source: { kind: 'worktree', scope: 'staged' }, title: 'empty' });
+    assert.equal(kept.outcome, 'kept');
+    assert.equal(kept.refreshCount, 1);
+    const patch = await post({ source: { kind: 'patch', text: 'x' } });
+    assert.equal(patch.outcome, 'opened');
+    assert.notEqual(patch.id, opened.id);
+  } finally {
+    await other.close();
+  }
 });
 
 test('routes stay behind the bearer token', async () => {

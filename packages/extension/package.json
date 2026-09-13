@@ -7,7 +7,7 @@
   "publisher": "nikiforovall",
   "icon": "media/icon.png",
   "engines": {
-    "vscode": "^1.90.0"
+    "vscode": "^1.96.0"
   },
   "categories": [
     "Other"
@@ -84,8 +84,13 @@
         "icon": "$(send)"
       },
       {
-        "command": "redline.refreshRounds",
-        "title": "Refresh",
+        "command": "redline.refreshRound",
+        "title": "Redline: Refresh round",
+        "icon": "$(sync)"
+      },
+      {
+        "command": "redline.reloadView",
+        "title": "Reload view",
         "icon": "$(refresh)"
       },
       {
@@ -95,7 +100,7 @@
       }
     ],
     "viewsContainers": {
-      "panel": [
+      "secondarySidebar": [
         {
           "id": "redline",
           "title": "Redline",
@@ -187,7 +192,7 @@
           "when": "false"
         },
         {
-          "command": "redline.refreshRounds",
+          "command": "redline.reloadView",
           "when": "false"
         }
       ],
@@ -198,8 +203,13 @@
           "when": "view == redline.rounds && viewItem == redline.round.open"
         },
         {
-          "command": "redline.openRoundById",
+          "command": "redline.refreshRound",
           "group": "inline@2",
+          "when": "view == redline.rounds && viewItem =~ /^redline\\.round\\./"
+        },
+        {
+          "command": "redline.openRoundById",
+          "group": "inline@3",
           "when": "view == redline.rounds && viewItem =~ /^redline\\.round\\./"
         },
         {
@@ -239,11 +249,6 @@
       ],
       "view/title": [
         {
-          "command": "redline.submitReview",
-          "group": "navigation",
-          "when": "view == workbench.panel.comments"
-        },
-        {
           "command": "redline.submitRound",
           "group": "navigation@1",
           "when": "view == redline.rounds"
@@ -269,7 +274,12 @@
           "when": "view == redline.rounds"
         },
         {
-          "command": "redline.refreshRounds",
+          "command": "redline.refreshRound",
+          "group": "1_actions@3",
+          "when": "view == redline.rounds"
+        },
+        {
+          "command": "redline.reloadView",
           "group": "2_manage@1",
           "when": "view == redline.rounds"
         },
@@ -314,7 +324,7 @@
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
-    "@types/vscode": "^1.90.0",
+    "@types/vscode": "^1.96.0",
     "esbuild": "^0.24.0",
     "typescript": "^5.6.0",
     "vscode-uri": "^3.0.8"

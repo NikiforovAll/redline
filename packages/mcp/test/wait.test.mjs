@@ -92,19 +92,25 @@ async function withServers(prefix, env, body) {
   }
 }
 
-const roundIdOf = (text) => text.match(/Opened round (\S+) /)[1];
+// The request_review text names the round by its source, so the id comes from list_reviews.
+const roundIdOf = async (mcp) => (await mcp.callTool('list_reviews', {})).content[0].text.match(/^(r\d+)\s/)[1];
 
 test('request_review hands off to the connect skill', async () => {
   await withServers('redline-wait-', {}, async ({ mcp }) => {
     const opened = await mcp.callTool('request_review', { source: { kind: 'patch', text: PATCH } });
+    assert.match(opened.content[0].text, /^Opened patch \(1 file, 0 notes\)\. Waiting for review in /);
+    assert.doesNotMatch(opened.content[0].text, /\br\d+\b/);
     assert.match(opened.content[0].text, /Now invoke the redline:redline-connect skill/);
+    const again = await mcp.callTool('request_review', { source: { kind: 'patch', text: PATCH } });
+    assert.match(again.content[0].text, /^Opened patch /);
+    assert.match((await mcp.callTool('list_reviews', {})).content[0].text, /^r2 /);
   });
 });
 
 test('get_review with wait returns once the reviewer submits', async () => {
   await withServers('redline-wait-', {}, async ({ proto, mcp }) => {
-    const opened = await mcp.callTool('request_review', { source: { kind: 'patch', text: PATCH } });
-    const roundId = roundIdOf(opened.content[0].text);
+    await mcp.callTool('request_review', { source: { kind: 'patch', text: PATCH } });
+    const roundId = await roundIdOf(mcp);
 
     const waiting = mcp.callTool('get_review', { roundId, wait: 20 });
     await sleep(400);
@@ -126,8 +132,8 @@ test('get_review with wait returns once the reviewer submits', async () => {
 
 test('get_review with wait reports the timeout without an error', async () => {
   await withServers('redline-wait-', {}, async ({ mcp }) => {
-    const opened = await mcp.callTool('request_review', { source: { kind: 'patch', text: PATCH } });
-    const roundId = roundIdOf(opened.content[0].text);
+    await mcp.callTool('request_review', { source: { kind: 'patch', text: PATCH } });
+    const roundId = await roundIdOf(mcp);
     const result = await mcp.callTool('get_review', { roundId, wait: 1 });
     assert.equal(result.isError, undefined);
     assert.equal(
@@ -139,8 +145,8 @@ test('get_review with wait reports the timeout without an error', async () => {
 
 test('get_review with wait and no roundId ignores rounds already delivered', async () => {
   await withServers('redline-wait-', { CLAUDE_CODE_SESSION_ID: 'sid-none' }, async ({ proto, mcp }) => {
-    const opened = await mcp.callTool('request_review', { source: { kind: 'patch', text: PATCH } });
-    const roundId = roundIdOf(opened.content[0].text);
+    await mcp.callTool('request_review', { source: { kind: 'patch', text: PATCH } });
+    const roundId = await roundIdOf(mcp);
     proto.command({
       cmd: 'thread',
       roundId,
@@ -163,8 +169,8 @@ test('get_review with wait and no roundId ignores rounds already delivered', asy
 
 test('reply_comment accepts text as an alias for body and names the field when both are missing', async () => {
   await withServers('redline-wait-', {}, async ({ proto, mcp }) => {
-    const opened = await mcp.callTool('request_review', { source: { kind: 'patch', text: PATCH } });
-    const roundId = roundIdOf(opened.content[0].text);
+    await mcp.callTool('request_review', { source: { kind: 'patch', text: PATCH } });
+    const roundId = await roundIdOf(mcp);
     proto.command({
       cmd: 'thread',
       roundId,
@@ -187,8 +193,8 @@ test('reply_comment accepts text as an alias for body and names the field when b
 
 test('a monitor started after a submit announces the pending round once', async () => {
   await withServers('redline-wait-', {}, async ({ proto, mcp, workspace }) => {
-    const opened = await mcp.callTool('request_review', { source: { kind: 'patch', text: PATCH } });
-    const roundId = roundIdOf(opened.content[0].text);
+    await mcp.callTool('request_review', { source: { kind: 'patch', text: PATCH } });
+    const roundId = await roundIdOf(mcp);
     proto.command({
       cmd: 'thread',
       roundId,

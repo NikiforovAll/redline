@@ -5,6 +5,8 @@ import {
   formatDate,
   noteDescription,
   noteLabel,
+  noteNodes,
+  notesDescription,
   roundChildren,
   roundDescription,
   roundLabel,
@@ -48,7 +50,7 @@ export class RoundView implements vscode.TreeDataProvider<RoundNode>, vscode.Dis
     const active = this.navigator.currentRound();
     this.activeRoundId = active?.id;
     const count = this.store.rounds().length;
-    this.view.description = active ? `${active.id} active` : undefined;
+    this.view.description = active ? `${active.sourceLabel} active` : undefined;
     this.view.badge = count > 0 ? { value: count, tooltip: `${count} review round${count === 1 ? '' : 's'}` } : undefined;
     void vscode.commands.executeCommand('setContext', 'redline.hasRounds', count > 0);
     this.changed.fire(undefined);
@@ -56,7 +58,9 @@ export class RoundView implements vscode.TreeDataProvider<RoundNode>, vscode.Dis
 
   getChildren(node?: RoundNode): RoundNode[] {
     if (!node) return rootNodes(this.store.rounds(), this.activeRoundId);
-    return node.kind === 'round' ? roundChildren(node.round, this.navigator.tourCursor) : [];
+    if (node.kind === 'round') return roundChildren(node.round, this.navigator.tourCursor);
+    if (node.kind === 'notes') return noteNodes(node.round, this.navigator.tourCursor);
+    return [];
   }
 
   getTreeItem(node: RoundNode): vscode.TreeItem {
@@ -70,7 +74,9 @@ export class RoundView implements vscode.TreeDataProvider<RoundNode>, vscode.Dis
         item.description = roundDescription(node.round);
         item.iconPath = new vscode.ThemeIcon(node.round.submittedAt ? 'pass-filled' : node.active ? 'circle-large-filled' : 'circle-large-outline');
         item.contextValue = node.round.submittedAt ? 'redline.round.submitted' : 'redline.round.open';
-        item.tooltip = `${node.round.sourceLabel}\nCreated ${formatDate(node.round.createdAt)}`;
+        item.tooltip = [node.round.title, node.round.sourceLabel, `Opened ${formatDate(node.round.createdAt)}`, node.round.refreshedAt && `Refreshed ${formatDate(node.round.refreshedAt)}`]
+          .filter(Boolean)
+          .join('\n');
         item.command = { command: 'redline.openRoundById', title: 'Open round', arguments: [node.round.id] };
         return item;
       }
@@ -80,12 +86,28 @@ export class RoundView implements vscode.TreeDataProvider<RoundNode>, vscode.Dis
         item.contextValue = 'redline.info';
         return item;
       }
+      case 'notes': {
+        const item = new vscode.TreeItem('Notes', vscode.TreeItemCollapsibleState.Expanded);
+        item.id = `notes:${node.roundId}`;
+        item.description = notesDescription(node.round);
+        item.iconPath = new vscode.ThemeIcon('list-ordered');
+        item.contextValue = 'redline.notes';
+        return item;
+      }
       case 'note': {
         const item = new vscode.TreeItem(`${node.index}. ${noteLabel(node.thread)}`);
         item.id = `note:${node.roundId}:${node.thread.id}`;
         item.description = noteDescription(node);
         item.iconPath = new vscode.ThemeIcon(
-          node.current ? 'debug-stackframe' : node.thread.resolved ? 'pass' : node.answered ? 'comment-discussion' : 'circle-small',
+          node.current
+            ? 'debug-stackframe'
+            : node.thread.detached
+              ? 'debug-disconnect'
+              : node.thread.resolved
+                ? 'pass'
+                : node.answered
+                  ? 'comment-discussion'
+                  : 'circle-small',
           node.current ? new vscode.ThemeColor('list.highlightForeground') : undefined
         );
         item.tooltip = new vscode.MarkdownString(node.thread.comments[0]?.body ?? '');
@@ -98,7 +120,11 @@ export class RoundView implements vscode.TreeDataProvider<RoundNode>, vscode.Dis
 
   register(
     context: vscode.ExtensionContext,
-    actions: { submit: (roundId: string) => Promise<void>; drop: (roundId: string) => Promise<void> }
+    actions: {
+      submit: (roundId: string) => Promise<void>;
+      drop: (roundId: string) => Promise<void>;
+      refresh: (roundId: string) => Promise<void>;
+    }
   ): void {
     const nav = this.navigator;
     const roundIdFrom = (arg: unknown): string | undefined =>
@@ -120,7 +146,11 @@ export class RoundView implements vscode.TreeDataProvider<RoundNode>, vscode.Dis
         const id = roundIdFrom(arg) ?? (await nav.pickRoundId('Drop which Redline review round?'));
         if (id) await actions.drop(id);
       }),
-      vscode.commands.registerCommand('redline.refreshRounds', () => this.refresh())
+      vscode.commands.registerCommand('redline.refreshRound', async (arg: unknown) => {
+        const id = roundIdFrom(arg) ?? nav.currentRound()?.id ?? (await nav.pickRoundId('Refresh which Redline review round?'));
+        if (id) await actions.refresh(id);
+      }),
+      vscode.commands.registerCommand('redline.reloadView', () => this.refresh())
     );
   }
 }

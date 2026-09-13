@@ -147,7 +147,7 @@ describe('renderReview', () => {
     assert.equal(
       markdown,
       [
-        '# Review r1: unstaged changes, 3 comments in 2 files',
+        '# Review: unstaged changes, 3 comments in 2 files',
         '',
         "Done thread (change landed, or declined with a reason): resolve_comment(id). Reviewer's turn (question, proposal, answer): reply_comment(id), thread stays open.",
         '',
@@ -329,7 +329,7 @@ describe('note anchoring', () => {
     assert.equal(
       markdown,
       [
-        '# Review r1: unstaged changes, 1 comment in 1 file',
+        '# Review: unstaged changes, 1 comment in 1 file',
         '',
         "Done thread (change landed, or declined with a reason): resolve_comment(id). Reviewer's turn (question, proposal, answer): reply_comment(id), thread stays open.",
         '',
@@ -433,7 +433,7 @@ describe('pending and submit', () => {
     assert.equal(submitted.fileCount, 2);
     assert.match(
       store.renderReview(roundId).markdown,
-      /^# Review r1: unstaged changes, 3 comments in 2 files$/m
+      /^# Review: unstaged changes, 3 comments in 2 files$/m
     );
   });
 
@@ -549,6 +549,225 @@ describe('round retention', () => {
     assert.equal(store.rounds().length, 10);
     assert.equal(store.round('r1'), undefined);
     assert.equal(store.round('r14')?.id, 'r14');
+  });
+});
+
+/** `sessionFile` after an edit: two lines inserted above the hunk, the guard restored, the TTL line rewritten. */
+function sessionFileEdited(): StoreFile {
+  return {
+    path: 'src/auth/session.ts',
+    status: 'modified',
+    left: 'x\n',
+    right: 'z\n',
+    hunks: [
+      {
+        oldStart: 16,
+        oldLines: 5,
+        newStart: 42,
+        newLines: 6,
+        lines: [
+          { kind: 'context', content: 'export function issueSession(payload, options = {}) {' },
+          { kind: 'context', content: '  const secret = process.env.SESSION_SECRET;' },
+          { kind: 'add', content: '  if (!secret) throw new Error("missing secret");' },
+          { kind: 'add', content: '  const ttl = options.ttl ?? DEFAULT_TTL;' },
+          { kind: 'add', content: '  return sign(payload, secret, { expiresIn: ttl });' },
+          { kind: 'del', content: '  if (!secret) throw new Error("missing secret");' },
+          { kind: 'context', content: '}' }
+        ]
+      }
+    ]
+  };
+}
+
+describe('refreshRound', () => {
+  const ttlLine = { file: 'src/auth/session.ts', side: 'right' as const, newLine: 42 };
+  const signLine = { file: 'src/auth/session.ts', side: 'right' as const, newLine: 43 };
+
+  it('finds the newest round with the same label for worktree and range sources, never for patches or file pairs', () => {
+    const store = new ReviewStore(memoryPersistence());
+    const first = store.createRound({ source: { kind: 'worktree', scope: 'all' } });
+    store.createRound({ source: { kind: 'range', from: 'main', to: 'HEAD' } });
+    const patch = store.createRound({ source: { kind: 'patch', text: 'x' } });
+    const again = store.createRound({ source: { kind: 'worktree', scope: 'all' } });
+    assert.equal(store.findOpenRound({ kind: 'worktree', scope: 'all' })?.id, again.id);
+    assert.notEqual(store.findOpenRound({ kind: 'worktree', scope: 'all' })?.id, first.id);
+    assert.equal(store.findOpenRound({ kind: 'range', from: 'main', to: 'HEAD' })?.id, 'r2');
+    assert.equal(store.findOpenRound({ kind: 'worktree', scope: 'staged' }), undefined);
+    assert.equal(store.findOpenRound({ kind: 'patch', text: 'x' }), undefined);
+    assert.equal(store.findOpenRound({ kind: 'files', pairs: [{ left: 'a', right: 'b' }] }), undefined);
+    assert.equal(patch.sourceLabel, 'patch');
+  });
+
+  it('moves a thread whose line shifted and keeps its comments', () => {
+    const { store, roundId } = fixture();
+    const thread = store.addThread(roundId, signLine, 'human', 'sign with the request secret');
+    assert.equal(store.refreshRound(roundId, { files: [sessionFileEdited(), middlewareFile()] }), 'refreshed');
+    const moved = store.thread(thread.id)!;
+    assert.deepEqual(moved.anchor, { file: 'src/auth/session.ts', side: 'right', newLine: 46 });
+    assert.equal(moved.detached, undefined);
+    assert.equal(moved.comments[0].body, 'sign with the request secret');
+  });
+
+  it('detaches an open and a resolved thread whose line is gone, and keeps both', () => {
+    const { store, roundId } = fixture();
+    const open = store.addThread(roundId, ttlLine, 'human', 'name the constant');
+    const done = store.addThread(roundId, ttlLine, 'human', 'and read it from config');
+    store.setResolved(done.id, true);
+    store.refreshRound(roundId, { files: [sessionFileEdited(), middlewareFile()] });
+    for (const id of [open.id, done.id]) {
+      const thread = store.thread(id)!;
+      assert.equal(thread.detached, true);
+      assert.deepEqual(thread.anchor, ttlLine);
+    }
+    assert.equal(store.thread(done.id)!.resolved, true);
+    assert.equal(store.round(roundId)!.threads.length, 3);
+    assert.equal(store.summary(roundId).detachedThreads, 2);
+  });
+
+  it('detaches every thread of a file the new snapshot lacks', () => {
+    const { store, roundId } = fixture();
+    const note = store.round(roundId)!.threads[0];
+    store.refreshRound(roundId, { files: [sessionFile()] });
+    assert.equal(store.thread(note.id)!.detached, true);
+    assert.equal(store.thread(note.id)!.anchor.file, 'src/http/middleware.ts');
+  });
+
+  it('attaches a detached thread again when its line comes back', () => {
+    const { store, roundId } = fixture();
+    const thread = store.addThread(roundId, ttlLine, 'human', 'name the constant');
+    store.refreshRound(roundId, { files: [sessionFileEdited(), middlewareFile()] });
+    assert.equal(store.thread(thread.id)!.detached, true);
+    store.refreshRound(roundId, { files: [sessionFile(), middlewareFile()] });
+    const back = store.thread(thread.id)!;
+    assert.equal(back.detached, undefined);
+    assert.deepEqual(back.anchor, ttlLine);
+  });
+
+  it('gives up on a line that appears several times with different neighbours', () => {
+    const store = new ReviewStore(memoryPersistence());
+    const round = store.createRound({ source: { kind: 'worktree', scope: 'all' } });
+    const brace = (content: string, kind: 'add' | 'context' = 'add') => ({ kind, content });
+    store.attachFiles(round.id, [
+      {
+        path: 'a.ts',
+        status: 'modified',
+        left: '',
+        right: '',
+        hunks: [{ oldStart: 1, oldLines: 1, newStart: 1, newLines: 3, lines: [brace('if (a) {'), brace('}'), brace('x()', 'context')] }]
+      }
+    ]);
+    const thread = store.addThread(round.id, { file: 'a.ts', side: 'right', newLine: 2 }, 'human', 'brace');
+    store.refreshRound(round.id, {
+      files: [
+        {
+          path: 'a.ts',
+          status: 'modified',
+          left: '',
+          right: '',
+          hunks: [
+            {
+              oldStart: 1,
+              oldLines: 1,
+              newStart: 1,
+              newLines: 5,
+              lines: [brace('if (b) {'), brace('}'), brace('if (c) {'), brace('}'), brace('y()', 'context')]
+            }
+          ]
+        }
+      ]
+    });
+    assert.equal(store.thread(thread.id)!.detached, true);
+  });
+
+  it('appends the request notes as new threads, keeps old notes, and recomputes unmatched files', () => {
+    const { store, roundId } = fixture();
+    const before = store.round(roundId)!.threads.map((thread) => thread.id);
+    store.refreshRound(roundId, {
+      files: [sessionFileEdited(), middlewareFile()],
+      title: 'Configurable TTL',
+      notes: [
+        { file: 'src/auth/session.ts', hunks: [{ newRange: [45, 45], summary: 'TTL now comes from DEFAULT_TTL' }] },
+        { file: 'src/missing.ts', summary: 'nowhere' }
+      ]
+    });
+    const round = store.round(roundId)!;
+    assert.deepEqual(round.threads.slice(0, before.length).map((thread) => thread.id), before);
+    assert.equal(round.threads.length, before.length + 1);
+    assert.deepEqual(round.threads.at(-1)!.anchor, { file: 'src/auth/session.ts', side: 'right', newLine: 44 });
+    assert.deepEqual(round.unmatchedNoteFiles, ['src/missing.ts']);
+    assert.equal(round.title, 'Configurable TTL');
+    assert.equal(round.notes.length, 3);
+  });
+
+  it('does not post a note again when the refreshing request resends it', () => {
+    const { store, roundId } = fixture();
+    const notes = store.round(roundId)!.notes;
+    const count = store.round(roundId)!.threads.length;
+    store.refreshRound(roundId, { files: [sessionFileEdited(), middlewareFile()], notes });
+    assert.equal(store.round(roundId)!.threads.length, count);
+    store.refreshRound(roundId, {
+      files: [sessionFileEdited(), middlewareFile()],
+      notes: [{ file: 'src/auth/session.ts', hunks: [{ newRange: [45, 45], summary: 'a new remark' }] }]
+    });
+    assert.equal(store.round(roundId)!.threads.length, count + 1);
+  });
+
+  it('clears submittedAt, stamps refreshedAt, counts refreshes, keeps the title when the request has none', () => {
+    const { store, roundId } = fixture();
+    store.addThread(roundId, ttlLine, 'human', 'one');
+    store.markSubmitted(roundId);
+    assert.ok(store.round(roundId)!.submittedAt);
+    let changes = 0;
+    store.onChange(() => changes++);
+    store.refreshRound(roundId, { files: [sessionFileEdited(), middlewareFile()], partial: true });
+    const summary = store.summary(roundId);
+    assert.equal(summary.submittedAt, undefined);
+    assert.ok(summary.refreshedAt);
+    assert.equal(summary.refreshCount, 1);
+    assert.equal(summary.title, undefined);
+    assert.equal(store.round(roundId)!.partial, true);
+    assert.equal(changes, 1);
+    store.refreshRound(roundId, { files: [sessionFileEdited(), middlewareFile()] });
+    assert.equal(store.summary(roundId).refreshCount, 2);
+    assert.equal(store.round(roundId)!.partial, undefined);
+  });
+
+  it('keeps the round untouched when the new snapshot is empty', () => {
+    const { store, roundId } = fixture();
+    const thread = store.addThread(roundId, ttlLine, 'human', 'one');
+    store.markSubmitted(roundId);
+    let changes = 0;
+    store.onChange(() => changes++);
+    assert.equal(store.refreshRound(roundId, { files: [], notes: [{ file: 'src/auth/session.ts', summary: 'x' }] }), 'kept');
+    const round = store.round(roundId)!;
+    assert.ok(round.submittedAt);
+    assert.equal(round.refreshedAt, undefined);
+    assert.equal(round.refreshCount, 0);
+    assert.equal(round.files.length, 2);
+    assert.equal(round.threads.length, 2);
+    assert.equal(store.thread(thread.id)!.detached, undefined);
+    assert.equal(changes, 0);
+  });
+
+  it('renders detached threads with their last line and a marker, and hides lineText from the wire', () => {
+    const { store, roundId } = fixture();
+    const thread = store.addThread(roundId, ttlLine, 'human', 'name the constant');
+    store.refreshRound(roundId, { files: [sessionFileEdited(), middlewareFile()] });
+    store.markSubmitted(roundId);
+    const { markdown } = store.renderReview(roundId);
+    assert.match(markdown, new RegExp(`### :42 right  \\[${thread.id}\\] \\(detached\\)`));
+    assert.match(markdown, /```diff\n   const ttl = options\.ttl \?\? 3600;\n```/);
+    assert.equal('lineText' in store.wireRound(roundId).threads.find((entry) => entry.id === thread.id)!, false);
+  });
+
+  it('loads rounds stored before refreshes existed with a zero count', () => {
+    const backing = new Map();
+    const seeded = new ReviewStore(memoryPersistence(backing));
+    seeded.createRound({ source: { kind: 'worktree', scope: 'all' } });
+    const state = backing.get('redline.store');
+    delete state.rounds[0].refreshCount;
+    const store = new ReviewStore(memoryPersistence(backing));
+    assert.equal(store.summary('r1').refreshCount, 0);
   });
 });
 

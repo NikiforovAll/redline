@@ -1,9 +1,10 @@
 import { randomBytes } from 'node:crypto';
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
 import type { AddressInfo } from 'node:net';
-import type { RequestReview, ReviewEvent } from '@redline/protocol';
+import type { Anchor, RequestReview, RequestReviewResult, ReviewEvent } from '@redline/protocol';
 import { SourceUnavailableError } from '../diff/index.ts';
-import { memoryPersistence, ReviewStore, type StoredRound } from '../review/store.ts';
+import { memoryPersistence, ReviewStore, type RefreshOutcome, type StoredRound } from '../review/store.ts';
+import { roundMessage } from '../review/view-model.ts';
 import {
   lockFilePath,
   normalizeWorkspacePath,
@@ -13,8 +14,14 @@ import {
 
 export interface ServerHooks {
   onRoundCreated?: (round: StoredRound) => void | Promise<void>;
+  /** A request on the source of an existing round; the hook rebuilds the snapshot and reports what the store did. Without it every request opens a round. */
+  onRoundRefresh?: (round: StoredRound, request: RequestReview) => RefreshOutcome | Promise<RefreshOutcome>;
   onThreadResolved?: (threadId: string) => void;
   onThreadReplied?: (threadId: string) => void;
+  /** A reviewer thread seeded over `/debug/threads`; the editor has no widget for it yet. */
+  onThreadSeeded?: (threadId: string) => void;
+  /** A round dropped over `/debug/rounds/drop` without the editor's confirmation; the hook removes it from the store and the editor. */
+  onRoundDropped?: (roundId: string) => void | Promise<void>;
 }
 
 export interface StartServerOptions {
@@ -40,6 +47,12 @@ function isSource(value: unknown): boolean {
   if (!value || typeof value !== 'object') return false;
   const kind = (value as { kind?: unknown }).kind;
   return kind === 'worktree' || kind === 'range' || kind === 'patch' || kind === 'files';
+}
+
+function isAnchor(value: unknown): value is Anchor {
+  if (!value || typeof value !== 'object') return false;
+  const anchor = value as Partial<Anchor>;
+  return typeof anchor.file === 'string' && (anchor.side === 'left' || anchor.side === 'right');
 }
 
 const REPLAY_LIMIT = 200;
@@ -146,10 +159,44 @@ export async function startServer(options: StartServerOptions): Promise<RunningS
       send(res, 200, { ok: true, ...emit(body as ReviewEvent) });
       return;
     }
+    if (req.method === 'POST' && url === '/debug/threads') {
+      const body = (await readJsonBody(req)) as { roundId?: unknown; anchor?: unknown; body?: unknown };
+      const text = typeof body?.body === 'string' ? body.body.trim() : '';
+      if (typeof body?.roundId !== 'string' || !isAnchor(body.anchor) || text.length === 0) {
+        send(res, 400, { error: 'redline: debug/threads needs roundId, an anchor with file and side, and a body' });
+        return;
+      }
+      if (!store.round(body.roundId)) {
+        send(res, 404, { error: `redline: unknown round ${body.roundId}` });
+        return;
+      }
+      const thread = store.addThread(body.roundId, body.anchor, 'human', text);
+      options.hooks?.onThreadSeeded?.(thread.id);
+      send(res, 200, thread);
+      return;
+    }
+    if (req.method === 'POST' && url === '/debug/rounds/drop') {
+      const body = (await readJsonBody(req)) as { roundId?: unknown };
+      if (typeof body?.roundId !== 'string' || !store.round(body.roundId)) {
+        send(res, 404, { error: `redline: unknown round ${String(body?.roundId)}` });
+        return;
+      }
+      if (options.hooks?.onRoundDropped) await options.hooks.onRoundDropped(body.roundId);
+      else store.removeRound(body.roundId);
+      send(res, 200, { ok: true });
+      return;
+    }
     if (req.method === 'POST' && url === '/rounds') {
       const body = (await readJsonBody(req)) as RequestReview;
       if (!isSource(body?.source)) {
         send(res, 400, { error: 'redline: request_review needs a source of kind worktree, range, patch or files' });
+        return;
+      }
+      const existing = store.findOpenRound(body.source);
+      if (existing && options.hooks?.onRoundRefresh) {
+        const outcome = await options.hooks.onRoundRefresh(existing, body);
+        const result: RequestReviewResult = { ...store.summary(existing.id), outcome, message: roundMessage(existing, outcome) };
+        send(res, 200, result);
         return;
       }
       const round = store.createRound({
@@ -158,7 +205,9 @@ export async function startServer(options: StartServerOptions): Promise<RunningS
         notes: body.notes
       });
       await options.hooks?.onRoundCreated?.(round);
-      send(res, 200, store.summary(round.id));
+      const opened = store.round(round.id) ?? round;
+      const result: RequestReviewResult = { ...store.summary(round.id), outcome: 'opened', message: roundMessage(opened, 'opened') };
+      send(res, 200, result);
       return;
     }
     if (req.method === 'GET' && url === '/rounds') {

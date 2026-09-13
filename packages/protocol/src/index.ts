@@ -43,6 +43,8 @@ export interface Thread {
   sent: boolean;
   delivered: boolean;
   kind: ThreadKind;
+  /** A refresh could not find the anchored line in the new snapshot; the anchor keeps the last known file and line. */
+  detached?: boolean;
 }
 
 export type FileStatus = 'added' | 'modified' | 'deleted' | 'renamed' | 'binary';
@@ -85,10 +87,22 @@ export interface RoundSummary {
   sourceLabel: string;
   fileCount: number;
   openThreads: number;
+  detachedThreads: number;
   createdAt: string;
   submittedAt?: string;
+  refreshedAt?: string;
+  refreshCount: number;
   /** Files named by request_review notes that the diff does not contain. */
   unmatchedNoteFiles?: string[];
+}
+
+export type RoundOutcome = 'opened' | 'refreshed' | 'kept';
+
+/** Response of `POST /rounds`: the summary of the round the request opened, refreshed, or left as it was. */
+export interface RequestReviewResult extends RoundSummary {
+  outcome: RoundOutcome;
+  /** One sentence on the outcome with the label and counts, no trailing period; the reviewer sees the same text as a toast. */
+  message: string;
 }
 
 export interface Round extends RoundSummary {

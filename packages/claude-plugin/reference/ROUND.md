@@ -24,6 +24,10 @@ No argument:
 
 ## Call request_review
 
-Call `request_review({source, title, notes})` once. Report the round id and file count in one line, then invoke the `redline:redline-connect` skill.
+Call `request_review({source, title, notes})` once. Report its first sentence, the source label and file count, in one line, then invoke the `redline:redline-connect` skill.
 
 A result whose text starts with `redline: ` is a remediation for the user: print it verbatim and end the turn.
+
+## One round per source
+
+A worktree scope or range that already has a round refreshes that round instead of opening another: the diff is rebuilt, the reviewer's threads move to the new lines, and threads whose lines are gone stay listed as detached. A `Kept` result means the diff is empty, usually because the work was committed; the round stays as the reviewer last saw it. After you edit in response to a review, call `request_review` again on the same source so the reviewer sees the result; notes are optional there. Patches and file pairs always open a new round.

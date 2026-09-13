@@ -37,7 +37,7 @@ Ask Claude to review a diff, for example with `/code-review`, or let it finish a
 /redline:redline-annotate
 ```
 
-Claude opens the diff as a round and posts the review it just wrote as threads on the lines it talks about. It reports one line, such as `Opened round r1 (unstaged changes, 3 files, 5 notes)`, then waits for your submit.
+Claude opens the diff as a round and posts the review it just wrote as threads on the lines it talks about. It reports one line, such as `Opened unstaged changes (3 files, 5 notes)`, then waits for your submit.
 
 ### Tour mode
 
@@ -57,7 +57,7 @@ Both skills take an optional source: `staged`, `unstaged`, `all`, a ref or range
 
 ### You start: Review working tree
 
-In VS Code, open the **Redline** panel (bottom panel, next to Terminal) and click **Review working tree**, or run `Redline: Review working tree` from the Command Palette. The round opens without notes. Write your threads, submit, then in Claude Code type:
+In VS Code, open the **Redline** view (secondary sidebar, toggle it with `Ctrl+Alt+B`) and click **Review working tree**, or run `Redline: Review working tree` from the Command Palette. The round opens without notes. Write your threads, submit, then in Claude Code type:
 
 ```
 /redline:redline-connect
@@ -67,7 +67,15 @@ Claude fetches the submitted comments and works through them. When Claude Code r
 
 ### The round view
 
-The round opens as a multi-file diff tab named after the round. Notes appear as read-only comment threads on the right side of each hunk. The **Redline** panel lists every round, newest first. Expand a round to see its source, when it was opened or submitted, and one row per note with its file and line. Click a note row to jump to it. `Ctrl+Alt+]` and `Ctrl+Alt+[` step through the notes in tour order.
+The round opens as a multi-file diff tab named after its source, such as `Redline: unstaged changes`. Notes appear as read-only comment threads on the right side of each hunk. The **Redline** panel lists every round, newest first, as `unstaged changes · 3 files · 2 open`. Expand a round to see Claude's title when it sent one, when the round was opened, refreshed, or submitted, and a **Notes** group with one row per note with its file and line. Click a note row to jump to it. `Ctrl+Alt+]` and `Ctrl+Alt+[` step through the notes in tour order. A step opens the note's file as a single diff in one preview tab, so the multi-file tab stays where you left it.
+
+### One round per source
+
+A source has one round. When Claude calls `request_review` again on the source of an open round, for example after it edits in response to your comments, the round refreshes in place: the diff is rebuilt from the working tree, your threads move to the lines they were about, and the round returns to open. Click **Refresh round** on the round row, or run `Redline: Refresh round`, to rebuild it yourself without waiting for Claude.
+
+A thread whose line is gone from the diff becomes **detached**. It leaves the editor and stays in the panel as `src/store.ts:120 · detached`, open or resolved, so the question and its answer survive the fix that removed the line. Click it to open the file's diff near where it was. Submit still sends open detached threads, and Claude sees them marked `(detached)` with their last context. When the line comes back, the thread re-attaches on the next refresh.
+
+A refresh that finds no diff, usually because the work was committed, changes nothing: Claude reports `Kept unstaged changes: nothing uncommitted to refresh from` and you keep the round as it was. Drop it when you are done. A range such as `main..HEAD` is its own round. Patches and `--files` always open a new round.
 
 ### Writing threads
 
@@ -77,14 +85,14 @@ The thread title bar has **Send to Agent**, which sends this one thread now with
 
 ### Submit
 
-Click **Submit review** in the round view title bar, in the Comments panel title bar, or press `Ctrl+Alt+R S`. Submit sends every open thread with your comment. VS Code confirms `Redline: sent 3 comments in 2 files to Claude`. When no Claude Code session is listening, VS Code queues the comments and the message tells you to run `/redline:redline-connect`.
+Click **Submit review** in the round view title bar or press `Ctrl+Alt+R S`. Submit sends every open thread with your comment. VS Code confirms `Redline: sent 3 comments in 2 files to Claude`. When no Claude Code session is listening, VS Code queues the comments and the message tells you to run `/redline:redline-connect`.
 
 ### What Claude receives
 
 One markdown document per fetch:
 
 ````markdown
-# Review r1: unstaged changes, 2 comments in 2 files
+# Review: unstaged changes, 2 comments in 2 files
 
 Done thread (change landed, or declined with a reason): resolve_comment(id). Reviewer's turn (question, proposal, answer): reply_comment(id), thread stays open.
 
@@ -98,4 +106,4 @@ Done thread (change landed, or declined with a reason): resolve_comment(id). Rev
 **you:** Make punctuation required; the default hides call sites that forgot it.
 ````
 
-Claude works through the threads in file order. Each thread ends in one of two ways. When the change landed, or Claude declined it and said why, Claude closes the thread with `resolve_comment` and a one-line note, and VS Code shows it as resolved. When Claude has a question or a proposal instead, it posts that with `reply_comment` and the thread stays open for you. Claude never edits or deletes a comment you wrote. It finishes with a summary per thread and offers a new round on the same source.
+Claude works through the threads in file order. Each thread ends in one of two ways. When the change landed, or Claude declined it and said why, Claude closes the thread with `resolve_comment` and a one-line note, and VS Code shows it as resolved. When Claude has a question or a proposal instead, it posts that with `reply_comment` and the thread stays open for you. Claude never edits or deletes a comment you wrote. It finishes with a summary per thread and calls `request_review` again on the same source, which refreshes the round with its edits.

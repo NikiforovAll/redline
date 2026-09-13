@@ -112,3 +112,9 @@ node packages/mcp/src/cli.mjs server
 3. Run `/redline-annotate` to open the diff as is, or `/redline-tour` for a numbered walkthrough. The diff opens in VS Code; comment, click Submit, and the session wakes with the comments.
 
 `_plans/arev-spike/demo.md` has the longer walk-through.
+
+## Playground
+
+`npm run playground -- --insiders` puts you in front of a seeded round without hunting for a repo with changes. It builds a small git repository under `.playground/todo/` from `scripts/playground/fixture/todo/` (`before/` is the baseline commit, `after/` the uncommitted edits), opens it in VS Code, waits for the extension's lock file, and posts a round with tour notes plus three reviewer comments from `scenario.json`. Comments and notes anchor by a `match` line, so editing the fixture files does not break them. Then start Claude Code in `.playground/todo`, run `/redline:redline-connect`, submit from VS Code, and ask for the change.
+
+Flags follow `install:local`: `--insiders`, `--profile <name>`. `--reset` rebuilds the repository, `--no-seed` skips the reviewer comments, `--scenario <name>` picks another fixture folder. Seeding uses `POST /debug/threads` on the extension's server, which exists for this harness only.

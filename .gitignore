@@ -5,3 +5,4 @@ dist/
 .vscode-test/
 docs/.vitepress/dist/
 docs/.vitepress/cache/
+.playground/

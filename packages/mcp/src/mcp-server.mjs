@@ -112,7 +112,7 @@ const TOOLS = [
   {
     name: 'request_review',
     description:
-      'Open a diff as a review round in VS Code. Returns at once; invoke the redline-connect skill next.',
+      'Open a diff as a review round in VS Code, or refresh the open round on the same worktree scope or range so the reviewer sees the current diff with their threads carried over. Returns at once; invoke the redline-connect skill next.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -132,7 +132,7 @@ const TOOLS = [
       'Done: the change landed in the code, or you declined it with the reason. Close it with resolve_comment(threadId, body) and a one-line note. ' +
       "Reviewer's turn: the comment is unclear, you want a yes before changing code, or you answered a question. Post with reply_comment(threadId, body) and leave the thread open. " +
       'Never author, edit, or delete a human comment. ' +
-      'Finish by summarising what changed per thread and offering a new round with the same source; do not open one unasked.',
+      'Finish by summarising what changed per thread, then call request_review again on the same source so the round refreshes with your edits; notes are optional there.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -267,7 +267,7 @@ const handlers = {
           `Tell the user, and widen the source (scope "all", or a range) if they belong in the review. `
         : '';
     return withHint(
-      `Opened round ${summary.id} (${summary.sourceLabel}, ${summary.fileCount} files, ${summary.openThreads} notes). ${dropped}` +
+      `${summary.message}. ${dropped}` +
         `Waiting for review in ${window.ping.appName ?? 'VS Code'}. ${CONNECT_TEXT}`,
       window
     );

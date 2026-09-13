@@ -26,16 +26,16 @@ Every chord starts with the leader `Ctrl+Alt+R` (`Cmd+Alt+R` on macOS). Press th
 | Send to Agent                     | `Ctrl+Alt+R Enter`      | Sends the thread under the cursor now, without submitting the round. The thread needs your comment first.                                   |
 | Mark resolved / Reopen thread     | `Ctrl+Alt+R R`          | Toggles resolved on the thread under the cursor.                                                                                             |
 | Redline: Review working tree      |                         | Opens a round of the working tree with no notes, for a review you start yourself.                                                            |
+| Redline: Refresh round            |                         | Rebuilds the round's diff from its source and moves your threads to the new lines. Threads whose lines are gone become detached.             |
 | Redline: Drop review round        |                         | Removes one round from the view and storage.                                                                                                 |
 | Redline: Drop all review rounds   |                         | Removes every round.                                                                                                                         |
-| Refresh                           |                         | Reloads the round view.                                                                                                                      |
+| Reload view                       |                         | Reloads the round view.                                                                                                                      |
 
 Thread commands act on the thread nearest the cursor in the active diff, else on the note you last stepped to. Rebind any of them under **Keyboard Shortcuts** by searching `redline`.
 
 ### Where the buttons are
 
-- **Round view** (the **Redline** panel): Submit review, previous and next note, and Drop all in the title bar. Review working tree, Open latest round, Refresh, and Drop review round in the `...` menu. Each round row has Submit and Open inline.
-- **Comments panel** title bar: Submit review.
+- **Round view** (the **Redline** panel): Submit review, previous and next note, and Drop all in the title bar. Review working tree, Open latest round, Refresh round, Reload view, and Drop review round in the `...` menu. Each round row has Submit, Refresh round, and Open inline.
 - **Thread title bar**: Send to Agent, Mark resolved or Reopen thread.
 - **Thread footer**: Comment, and Send to Agent, which saves the reply you are typing and sends it.
 
@@ -51,7 +51,7 @@ The plugin registers an MCP server named `redline`. Claude calls these; you rare
 
 | Tool              | Arguments                                                        | Does                                                                                                                                                                                                                                                       |
 | ----------------- | ---------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `request_review`  | `source`, `title?`, `notes?`                                     | Opens a round in the VS Code window with this folder open. Returns the round id, file count, and note count at once. Notes on files outside the diff are dropped and reported.                                                                             |
+| `request_review`  | `source`, `title?`, `notes?`                                     | Opens a round in the VS Code window with this folder open, or refreshes the open round of the same `worktree` or `range` source. Returns `Opened`, `Refreshed`, or `Kept` with the source label and counts. Notes on files outside the diff are dropped and reported. |
 | `get_review`      | `roundId?`, `threads?`, `wait?` (seconds, max 300)              | Returns the submitted comments of a round as markdown and marks them delivered. Without `roundId`, the newest round with undelivered comments. With `wait`, blocks until a submit or the timeout.                                                          |
 | `list_reviews`    |                                                                  | Lists the rounds of this window, newest first, with file count, open threads, and state.                                                                                                                                                                  |
 | `resolve_comment` | `threadId`, `body?`                                              | Closes a thread with a one-line note on what changed. VS Code shows the thread as resolved.                                                                                                                                                              |
@@ -91,4 +91,4 @@ Two messages come from VS Code instead of Claude:
 | Message                                                            | Meaning                                                                                                             |
 | ------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------- |
 | `Redline: submitted N comments. Queued; /redline:redline-connect in Claude Code picks it up.` | No session is listening. Run `/redline:redline-connect` in Claude Code, in the same folder, to fetch them.          |
-| `Redline: nothing to send in <round>. Only open threads with your comment are sent.` | Write a comment in a thread first. Claude's notes alone are not sent back.                                          |
+| `Redline: nothing to send in <source>. Only open threads with your comment are sent.` | Write a comment in a thread first. Claude's notes alone are not sent back.                                          |

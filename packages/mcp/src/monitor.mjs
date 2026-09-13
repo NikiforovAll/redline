@@ -2,7 +2,7 @@
 import { readFileSync, writeFileSync } from 'node:fs';
 import { isAlive } from './redline-home.mjs';
 import { discover } from './discover.mjs';
-import { MONITOR_BEAT_MS, MONITOR_LOCK_TAG, MONITOR_STALE_MS, monitorLockPath, sleep } from './wake.mjs';
+import { MONITOR_BEAT_MS, MONITOR_LOCK_TAG, MONITOR_STALE_MS, monitorLockPath, plural, sleep } from './wake.mjs';
 
 const SESSION_ID = process.env.CLAUDE_CODE_SESSION_ID;
 if (!SESSION_ID) process.exit(0);
@@ -47,7 +47,6 @@ const sanitize = (s) =>
 
 const note = (msg) => process.stderr.write(`redline-monitor: ${msg}\n`);
 
-const plural = (count, noun) => `${count} ${noun}${count === 1 ? '' : 's'}`;
 
 function format(event) {
   if (!event || typeof event !== 'object') return null;

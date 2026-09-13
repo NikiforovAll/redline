@@ -88,36 +88,35 @@ export class RoundNavigator implements vscode.Disposable {
   }
 
   roundTitle(round: StoredRound): string {
-    return `Redline ${roundLabel(round)}`;
+    return `Redline: ${roundLabel(round)}`;
   }
 
   /**
-   * `_workbench.openMultiDiffEditor` is internal but is the only way to reveal a file inside an
-   * open multi-diff: `vscode.changes` accepts no reveal and opens a fresh tab each time.
+   * `_workbench.openMultiDiffEditor` is internal, but `vscode.changes` opens a fresh tab each time.
    * A stable `multiDiffSourceUri` per round makes VS Code reuse the same editor.
    */
-  private async openMultiDiff(round: StoredRound, reveal?: { path: string; line: number }): Promise<void> {
+  private async openMultiDiff(round: StoredRound): Promise<void> {
     await vscode.commands.executeCommand('_workbench.openMultiDiffEditor', {
       title: this.roundTitle(round),
       multiDiffSourceUri: vscode.Uri.parse(roundUri(round.id)),
       resources: round.files.map((file) => ({
         originalUri: this.uriFor(round.id, 'left', file.path),
         modifiedUri: this.uriFor(round.id, 'right', file.path)
-      })),
-      reveal: reveal && {
-        modifiedUri: this.uriFor(round.id, 'right', reveal.path),
-        range: { startLineNumber: reveal.line, startColumn: 1, endLineNumber: reveal.line, endColumn: 1 }
-      }
+      }))
     });
   }
 
-  private openSingleDiff(roundId: string, filePath: string, selection?: vscode.Range): Thenable<unknown> {
+  private openSingleDiff(
+    round: StoredRound,
+    filePath: string,
+    options: { preview: boolean; selection?: vscode.Range }
+  ): Thenable<unknown> {
     return vscode.commands.executeCommand(
       'vscode.diff',
-      this.uriFor(roundId, 'left', filePath),
-      this.uriFor(roundId, 'right', filePath),
-      `${filePath} (${roundId})`,
-      { preview: false, selection }
+      this.uriFor(round.id, 'left', filePath),
+      this.uriFor(round.id, 'right', filePath),
+      `${filePath} (${round.sourceLabel})`,
+      options
     );
   }
 
@@ -139,7 +138,7 @@ export class RoundNavigator implements vscode.Disposable {
         void vscode.window.showWarningMessage(
           `Redline: vscode.changes failed (${String(err)}), opening single diffs.`
         );
-        for (const file of round.files) await this.openSingleDiff(roundId, file.path);
+        for (const file of round.files) await this.openSingleDiff(round, file.path, { preview: false });
         return;
       }
     }
@@ -183,7 +182,7 @@ export class RoundNavigator implements vscode.Disposable {
     }
     const ordered = openNotes(round);
     if (ordered.length === 0) {
-      void vscode.window.showInformationMessage(`Redline: ${round.id} has no open comments.`);
+      void vscode.window.showInformationMessage(`Redline: ${round.sourceLabel} has no open comments.`);
       return;
     }
     const current =
@@ -204,44 +203,11 @@ export class RoundNavigator implements vscode.Disposable {
     this.cursorEmitter.fire(this.cursor);
     const line = threadLine(round, stored);
     const range = new vscode.Range(line - 1, 0, line - 1, 0);
-    const uri = this.uriFor(round.id, stored.anchor.side, stored.anchor.file);
-    // The multi-diff scrolls from estimated heights of editors it has not laid out yet, so a
-    // reveal into a file far down the list can land on another file entirely, and even a hit
-    // sits off by the height of the unchanged regions that unfold afterwards. Repeat the reveal
-    // until the target editor is mounted, then correct the position on it.
+    // A single diff instead of a reveal inside the multi-diff: the multi-diff scrolls from
+    // estimated heights of editors it has not laid out yet and keeps correcting after the
+    // reveal, which fights the reviewer's own scrolling. One preview tab serves every step.
     this.onRevealed?.(stored.id);
-    let mounted: vscode.TextEditor | undefined;
-    for (let attempt = 0; attempt < 3 && !mounted; attempt += 1) {
-      await this.openMultiDiff(round, { path: stored.anchor.file, line }).catch(() =>
-        this.openSingleDiff(round.id, stored.anchor.file, range)
-      );
-      mounted = await this.mountedEditor(uri);
-    }
-    if (mounted) {
-      mounted.selection = new vscode.Selection(range.start, range.end);
-      mounted.revealRange(range, vscode.TextEditorRevealType.InCenter);
-    }
+    await this.openSingleDiff(round, stored.anchor.file, { preview: true, selection: range });
     vscode.window.setStatusBarMessage(`Redline: note ${notePosition(round, stored)}`, 3000);
-  }
-
-  /** Resolves once an editor for `uri` is visible, or with undefined after a short wait. */
-  private mountedEditor(uri: vscode.Uri, timeoutMs = 500): Promise<vscode.TextEditor | undefined> {
-    const key = uri.toString();
-    const find = (): vscode.TextEditor | undefined =>
-      vscode.window.visibleTextEditors.find((editor) => editor.document.uri.toString() === key);
-    const now = find();
-    if (now) return Promise.resolve(now);
-    return new Promise((resolve) => {
-      const done = (editor: vscode.TextEditor | undefined): void => {
-        clearTimeout(timer);
-        listener.dispose();
-        resolve(editor);
-      };
-      const listener = vscode.window.onDidChangeVisibleTextEditors(() => {
-        const editor = find();
-        if (editor) done(editor);
-      });
-      const timer = setTimeout(() => done(undefined), timeoutMs);
-    });
   }
 }

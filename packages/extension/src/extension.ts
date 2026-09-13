@@ -32,7 +32,8 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   ui.register(context);
   new RoundView(store, ui.navigator).register(context, {
     submit: (roundId) => ui.submit(undefined, roundId),
-    drop: (roundId) => ui.dropRound(roundId)
+    drop: (roundId) => ui.dropRound(roundId),
+    refresh: (roundId) => ui.refreshFromSource(roundId)
   });
 
   context.subscriptions.push(
@@ -65,11 +66,14 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     store,
     hooks: {
       onRoundCreated: (round) => ui.materialize(round),
+      onRoundRefresh: (round, request) => ui.refresh(round, request),
       onThreadResolved: (threadId) => ui.refreshThread(threadId),
       onThreadReplied: (threadId) => {
         ui.refreshThread(threadId);
         ui.expandThread(threadId);
-      }
+      },
+      onThreadSeeded: (threadId) => ui.showThread(threadId),
+      onRoundDropped: (roundId) => ui.removeRound(roundId)
     }
   }).then(
     (running) => {

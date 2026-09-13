@@ -1,12 +1,13 @@
 import { userInfo } from 'node:os';
 import * as vscode from 'vscode';
-import type { Anchor, Author, Thread } from '@redline/protocol';
+import type { Anchor, Author, RequestReview, Thread } from '@redline/protocol';
 import { REDLINE_SCHEME } from '../diff/index.ts';
-import { attachSnapshot } from '../server/snapshot.ts';
+import { attachSnapshot, refreshSnapshot } from '../server/snapshot.ts';
 import { AGENT_LABEL, COMMENT_OPTIONS, sideLabel, threadDecoration } from './decoration.ts';
 import { absolutizeLinks } from './markdown.ts';
 import { RoundNavigator } from './navigator.ts';
-import { hasHumanComment, threadLine, type ReviewStore, type StoredRound } from './store.ts';
+import { hasHumanComment, threadLine, type RefreshOutcome, type ReviewStore, type StoredRound } from './store.ts';
+import { plural, roundMessage } from './view-model.ts';
 
 /** Each emitter returns whether at least one agent stream received the event. */
 export interface UiEvent {
@@ -41,6 +42,7 @@ export class ReviewUi implements vscode.Disposable {
   private readonly idByThread = new Map<vscode.CommentThread, string>();
   private readonly roundIdByThreadId = new Map<string, string>();
   private readonly disposables: vscode.Disposable[] = [];
+  private readonly contentChanged = new vscode.EventEmitter<vscode.Uri>();
   private human: vscode.CommentAuthorInformation;
   private readonly localIdentity: vscode.CommentAuthorInformation;
   private readonly rootUri: vscode.Uri | undefined;
@@ -66,7 +68,9 @@ export class ReviewUi implements vscode.Disposable {
     this.disposables.push(
       this.navigator,
       this.controller,
+      this.contentChanged,
       vscode.workspace.registerTextDocumentContentProvider(REDLINE_SCHEME, {
+        onDidChange: this.contentChanged.event,
         provideTextDocumentContent: (uri) => this.contentFor(uri)
       }),
       vscode.authentication.onDidChangeSessions((event) => {
@@ -144,6 +148,33 @@ export class ReviewUi implements vscode.Disposable {
     await this.navigator.openRound(round.id);
   }
 
+  /** Reruns the round's snapshot; a request from the agent brings a title and notes, the reviewer's Refresh brings none. */
+  async refresh(round: StoredRound, request?: Pick<RequestReview, 'title' | 'notes'>): Promise<RefreshOutcome> {
+    const before = round.files.map((file) => file.path);
+    const outcome = await refreshSnapshot(this.store, round, this.repoRoot, request);
+    if (outcome === 'refreshed') {
+      // Open diff documents keep the text they were opened with until the provider says it changed.
+      for (const path of new Set([...before, ...round.files.map((file) => file.path)])) {
+        this.contentChanged.fire(this.navigator.uriFor(round.id, 'left', path));
+        this.contentChanged.fire(this.navigator.uriFor(round.id, 'right', path));
+      }
+      this.rebuildRound(round.id);
+    }
+    await this.navigator.openRound(round.id);
+    return outcome;
+  }
+
+  async refreshFromSource(roundId: string): Promise<void> {
+    const round = this.store.round(roundId);
+    if (!round) return;
+    try {
+      const outcome = await this.refresh(round);
+      void vscode.window.showInformationMessage(`Redline: ${roundMessage(round, outcome)}.`);
+    } catch (err) {
+      void vscode.window.showErrorMessage(`Redline: ${String(err)}`);
+    }
+  }
+
   private disposeThreads(): void {
     for (const thread of this.byThreadId.values()) thread.dispose();
     this.byThreadId.clear();
@@ -177,11 +208,16 @@ export class ReviewUi implements vscode.Disposable {
     if (!round) return;
     const open = round.threads.filter((thread) => !thread.resolved).length;
     const pick = await vscode.window.showWarningMessage(
-      `Redline: drop ${round.id} (${round.title ?? round.sourceLabel}) with ${open} open comment${open === 1 ? '' : 's'}?`,
+      `Redline: drop ${round.sourceLabel}${round.title ? ` (${round.title})` : ''} with ${plural(open, 'open comment')}?`,
       { modal: true },
       'Drop'
     );
     if (pick !== 'Drop') return;
+    this.removeRound(roundId);
+  }
+
+  removeRound(roundId: string): void {
+    if (!this.store.round(roundId)) return;
     this.store.removeRound(roundId);
     this.rebuildRound(roundId);
   }
@@ -232,6 +268,17 @@ export class ReviewUi implements vscode.Disposable {
       : vscode.CommentThreadState.Unresolved;
   }
 
+  /** Creates the widget for a stored thread that has none yet, or refreshes the one it has. */
+  showThread(threadId: string): void {
+    if (this.byThreadId.has(threadId)) {
+      this.refreshThread(threadId);
+      return;
+    }
+    const stored = this.store.thread(threadId);
+    const round = stored ? this.store.round(stored.roundId) : undefined;
+    if (stored && round) this.createThread(round, stored);
+  }
+
   refreshThread(threadId: string): void {
     const thread = this.byThreadId.get(threadId);
     const stored = this.store.thread(threadId);
@@ -262,13 +309,15 @@ export class ReviewUi implements vscode.Disposable {
     this.expandThread(threadId);
   }
 
-  private refreshRound(roundId: string): void {
+  private redecorateRound(roundId: string): void {
     const round = this.store.round(roundId);
     if (!round) return;
     for (const stored of round.threads) this.refreshThread(stored.id);
   }
 
+  /** A detached thread has no line to sit on, so it gets no widget; the Redline panel lists it. */
   private createThread(round: StoredRound, stored: Thread): void {
+    if (stored.detached) return;
     const line = threadLine(round, stored) - 1;
     const uri = this.navigator.uriFor(round.id, stored.anchor.side, stored.anchor.file);
     const thread = this.controller.createCommentThread(
@@ -355,7 +404,7 @@ export class ReviewUi implements vscode.Disposable {
     }
     if (this.store.drafts(target).length === 0) {
       void vscode.window.showInformationMessage(
-        `Redline: nothing to send in ${target}. Only open threads with your comment are sent.`
+        `Redline: nothing to send in ${this.store.round(target)?.sourceLabel ?? target}. Only open threads with your comment are sent.`
       );
       return;
     }
@@ -366,10 +415,8 @@ export class ReviewUi implements vscode.Disposable {
       fileCount: result.fileCount,
       sourceLabel: result.sourceLabel
     });
-    this.refreshRound(result.roundId);
-    const what = `${result.commentCount} comment${result.commentCount === 1 ? '' : 's'} in ${
-      result.fileCount
-    } file${result.fileCount === 1 ? '' : 's'}`;
+    this.redecorateRound(result.roundId);
+    const what = `${plural(result.commentCount, 'comment')} in ${plural(result.fileCount, 'file')}`;
     void vscode.window.showInformationMessage(
       heard ? `Redline: sent ${what} to ${AGENT_LABEL}.` : `Redline: submitted ${what}. ${QUEUED_HINT}`
     );

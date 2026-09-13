@@ -10,6 +10,7 @@
     "build": "npm run build -w @redline/protocol && npm run build -w redline-extension",
     "test": "npm test -w redline-extension && npm test -w @nikiforovall/redline-mcp && npm test -w @redline/claude-plugin",
     "install:local": "node scripts/install-local.mjs",
+    "playground": "node scripts/playground.mjs",
     "release": "node scripts/release.mjs",
     "docs:dev": "vitepress dev docs",
     "docs:build": "vitepress build docs",

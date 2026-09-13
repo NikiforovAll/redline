@@ -1,0 +1,46 @@
+{
+  "title": "Hide completed items from the list and add due dates",
+  "notes": [
+    {
+      "file": "src/dates.mjs",
+      "summary": "**[1/4]** New module. Due dates come in as `YYYY-MM-DD` strings and live as UTC dates so a local time zone cannot shift the day.",
+      "hunks": [
+        {
+          "match": "export function parseDue(text) {",
+          "summary": "**[2/4]** Strict format. Anything but `YYYY-MM-DD` throws, so a bad date fails at `add`, not when the list prints.",
+          "rationale": "Silently accepting `Date.parse` output would let `2026-1-5` through as a local-time date."
+        }
+      ]
+    },
+    {
+      "file": "src/store.mjs",
+      "hunks": [
+        {
+          "match": "export function open() {",
+          "summary": "**[3/4]** `list` becomes `open` and hides completed items. `all` keeps the old behaviour for callers that want everything."
+        },
+        {
+          "match": "export function isOverdue(item, now = new Date()) {",
+          "summary": "**[4/4]** Overdue means the due day is before today, compared as dates, so an item due today is not overdue yet."
+        }
+      ]
+    }
+  ],
+  "comments": [
+    {
+      "file": "src/store.mjs",
+      "match": "return item.due.toISOString().slice(0, 10) < now.toISOString().slice(0, 10);",
+      "body": "This compares strings. `dates.mjs` already has `isPast`; use it here and drop the slicing."
+    },
+    {
+      "file": "src/format.mjs",
+      "match": "return open().map(formatItem).join('\\n');",
+      "body": "Should `formatList` take the items as an argument instead of reaching into the store? Then `all()` callers can format too."
+    },
+    {
+      "file": "src/store.mjs",
+      "match": "if (!item.due || item.done) return false;",
+      "body": "Why is a done item never overdue? A late completion still counts as late for a report."
+    }
+  ]
+}

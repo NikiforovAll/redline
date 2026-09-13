@@ -15,6 +15,7 @@ export const MONITOR_STALE_MS = 3 * MONITOR_BEAT_MS;
 const LOCK_PREFIX = 'redline-monitor-';
 
 export const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+export const plural = (count, noun) => `${count} ${noun}${count === 1 ? '' : 's'}`;
 
 function monitorLockDir(env = process.env) {
   return env.CLAUDE_PLUGIN_DATA || tmpdir();
