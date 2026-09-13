@@ -4,7 +4,7 @@ Bug reports and pull requests are welcome. For anything larger than a fix, open 
 
 ## Setup
 
-Node 18 or newer, VS Code with the `code` command on PATH, and Claude Code. Then:
+Node 22 or newer, VS Code with the `code` command on PATH, and Claude Code. Then:
 
 ```sh
 npm install

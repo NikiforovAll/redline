@@ -2,8 +2,6 @@
 
 Redline is a two-way code review tool for Claude Code and VS Code. Claude posts its review of a diff as comment threads on the lines in VS Code. You answer, add your own threads, and click Submit. Claude works through every thread, edits the code, and replies in place until you close it.
 
-![Claude posts a thread on the diff, you answer, Claude fixes the code and resolves the thread](assets/hero.gif)
-
 The [docs site](https://nikiforovall.blog/redline/) has a [guide](https://nikiforovall.blog/redline/guide) that walks one round end to end and a [reference](https://nikiforovall.blog/redline/reference) for every command, shortcut, setting, MCP tool, and error text.
 
 ![The loop end to end: a reviewer question in a thread, the agent's reply, and the Claude Code session that woke on submit](assets/review-interactive-demo.png)

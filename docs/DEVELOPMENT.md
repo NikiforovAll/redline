@@ -4,7 +4,7 @@ redline has two halves that install into two different hosts: a VS Code extensio
 
 ## Prerequisites
 
-- Node 18 or newer and npm. The repo is an npm workspace; run `npm install` once at the root.
+- Node 22 or newer and npm; the tests run TypeScript files through `node --test`, which needs 22. The repo is an npm workspace; run `npm install` once at the root.
 - VS Code with the `code` command on PATH (in VS Code: **Shell Command: Install 'code' command in PATH**).
 - Claude Code.
 - The GitHub CLI (`gh`) only for [publishing](PUBLISHING.md).
