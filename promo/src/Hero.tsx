@@ -80,12 +80,11 @@ const Avatar = ({ who }: { who: "claude" | "you" }) => (
 );
 
 const Intro = ({ frame, fps }: { frame: number; fps: number }) => {
-  const enter = spring({ frame, fps, config: { damping: 200 }, durationInFrames: 26 });
-  const sub = clamp(frame, 14, 34, 0, 1, ease);
+  const sub = clamp(frame, 6, 26, 0, 1, ease);
   const leave = clamp(frame, T.card - 10, T.card + 8, 0, 1, Easing.inOut(Easing.cubic));
   return (
     <AbsoluteFill style={{ background: C.bg, opacity: 1 - leave, alignItems: "center", justifyContent: "center", fontFamily: UI }}>
-      <div style={{ opacity: enter, transform: `translateY(${(1 - enter) * 18 - leave * 14}px)`, textAlign: "center" }}>
+      <div style={{ transform: `translateY(${-leave * 14}px)`, textAlign: "center" }}>
         <Lockup logo={104} text={116} />
         <div style={{ marginTop: 26, fontSize: 34, fontWeight: 600, color: C.text1, letterSpacing: -0.5, opacity: sub, transform: `translateY(${(1 - sub) * 10}px)` }}>
           Code review for Claude Code and VS Code
