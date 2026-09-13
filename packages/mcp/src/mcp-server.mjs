@@ -6,7 +6,7 @@ import {
   ListToolsRequestSchema
 } from '@modelcontextprotocol/sdk/types.js';
 import { discover, DISCOVER_NO_LOCK, DISCOVER_STALE_LOCK } from './discover.mjs';
-import { CONNECT_TEXT, monitorArmed, sleep, WAIT_MAX_S } from './wake.mjs';
+import { CONNECT_TEXT, monitorArmed, plural, sleep, WAIT_MAX_S } from './wake.mjs';
 
 const WAIT_POLL_MS = Number(process.env.REDLINE_WAIT_POLL_MS) || 2000;
 const MONITOR_GRACE_MS = Number(process.env.REDLINE_MONITOR_GRACE_MS ?? 3000);
@@ -113,7 +113,8 @@ const TOOLS = [
     name: 'request_review',
     description:
       'Open a diff as a review round in VS Code, or refresh the open round on the same worktree scope or range so the reviewer sees the current diff with their threads carried over. ' +
-      'With roundId instead of source, refresh that round (a round the reviewer opened with Compare, or one from list_reviews) from its stored source and attach the title and notes to it. Returns at once; invoke the redline-connect skill next.',
+      'With roundId instead of source, refresh that round (a round the reviewer opened with Compare, or one from list_reviews) from its stored source and attach the title and notes to it. Returns at once; invoke the redline-connect skill next. ' +
+      'To add notes to a round that is already open, call add_notes.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -122,6 +123,20 @@ const TOOLS = [
         title: { type: 'string' },
         notes: { type: 'array', items: NOTE_SCHEMA }
       }
+    }
+  },
+  {
+    name: 'add_notes',
+    description:
+      'Post notes under an existing round: a remark the user asked for, a follow-up on a file, a pointer to a line. Each note becomes a thread the reviewer sees in the diff as it stands. ' +
+      'roundId is the one request_review returned, the one the user gives, or one from list_reviews. Nothing else changes: no diff rebuild, no submit, no new round.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        roundId: { type: 'string', description: 'An existing round id, such as r3.' },
+        notes: { type: 'array', items: NOTE_SCHEMA, minItems: 1 }
+      },
+      required: ['roundId', 'notes']
     }
   },
   {
@@ -253,6 +268,14 @@ async function waitForSubmit(roundId, seconds) {
   }
 }
 
+function droppedNotesText(summary) {
+  const unmatched = summary.unmatchedNoteFiles ?? [];
+  return unmatched.length > 0
+    ? ` Notes on ${unmatched.length} file(s) were dropped because the diff does not contain them: ${unmatched.join(', ')}. ` +
+        `Tell the user, and widen the source (scope "all", or a range) if they belong in the review.`
+    : '';
+}
+
 const handlers = {
   async request_review(args) {
     const window = await discover(process.cwd());
@@ -264,17 +287,21 @@ const handlers = {
       },
       window
     );
-    const unmatched = summary.unmatchedNoteFiles ?? [];
-    const dropped =
-      unmatched.length > 0
-        ? `Notes on ${unmatched.length} file(s) were dropped because the diff does not contain them: ${unmatched.join(', ')}. ` +
-          `Tell the user, and widen the source (scope "all", or a range) if they belong in the review. `
-        : '';
     return withHint(
-      `${summary.message}. ${dropped}` +
+      `${summary.message}.${droppedNotesText(summary)} ` +
         `Waiting for review in ${window.ping.appName ?? 'VS Code'}. ${CONNECT_TEXT}`,
       window
     );
+  },
+
+  async add_notes(args) {
+    const window = await discover(process.cwd());
+    const summary = await call(
+      `/rounds/${encodeURIComponent(String(args.roundId))}/notes`,
+      { method: 'POST', body: JSON.stringify({ notes: args.notes }) },
+      window
+    );
+    return withHint(`Posted ${plural(summary.threadIds.length, 'note')} to ${summary.id} (${summary.sourceLabel}).${droppedNotesText(summary)}`, window);
   },
 
   async get_review(args) {

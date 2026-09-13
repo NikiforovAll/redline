@@ -355,6 +355,24 @@ test('POST /rounds on the source of an open round refreshes it through the hook 
   }
 });
 
+test('POST /rounds/{id}/notes posts threads on the current diff without a refresh', async () => {
+  const refreshCount = store.round('r1').refreshCount;
+  const { status, body } = await api('/rounds/r1/notes', {
+    method: 'POST',
+    body: JSON.stringify({ notes: [{ file: 'src/app.ts', summary: 'a remark' }, { file: 'missing.ts', summary: 'x' }] })
+  });
+  assert.equal(status, 200);
+  assert.equal(body.id, 'r1');
+  assert.equal(body.threadIds.length, 1);
+  assert.equal(body.refreshCount, refreshCount);
+  assert.deepEqual(body.unmatchedNoteFiles, ['missing.ts']);
+  assert.equal(store.thread(body.threadIds[0]).kind, 'note');
+  const empty = await api('/rounds/r1/notes', { method: 'POST', body: JSON.stringify({ notes: [] }) });
+  assert.equal(empty.status, 400);
+  const missing = await api('/rounds/r99/notes', { method: 'POST', body: JSON.stringify({ notes: [{ file: 'a' }] }) });
+  assert.equal(missing.status, 404);
+});
+
 test('POST /rounds with an unknown roundId 404s', async () => {
   const { status, body } = await api('/rounds', { method: 'POST', body: JSON.stringify({ roundId: 'nope' }) });
   assert.equal(status, 404);

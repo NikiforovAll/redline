@@ -107,6 +107,20 @@ test('request_review hands off to the connect skill', async () => {
   });
 });
 
+test('add_notes posts under an existing round and rejects an unknown one', async () => {
+  await withServers('redline-wait-', {}, async ({ mcp }) => {
+    await mcp.callTool('request_review', { source: { kind: 'patch', text: PATCH } });
+    const roundId = await roundIdOf(mcp);
+    const posted = await mcp.callTool('add_notes', { roundId, notes: [{ file: 'hello.txt', summary: 'a remark' }] });
+    assert.equal(posted.content[0].text, `Posted 1 note to ${roundId} (patch).`);
+    assert.match((await mcp.callTool('list_reviews', {})).content[0].text, /^r1 {2}patch {2}1 files {2}1 open/);
+    assert.match((await mcp.callTool('list_reviews', {})).content[0].text, /in review/);
+    const missing = await mcp.callTool('add_notes', { roundId: 'r99', notes: [{ file: 'hello.txt', summary: 'x' }] });
+    assert.equal(missing.isError, true);
+    assert.match(missing.content[0].text, /^redline: unknown round r99/);
+  });
+});
+
 test('get_review with wait returns once the reviewer submits', async () => {
   await withServers('redline-wait-', {}, async ({ proto, mcp }) => {
     await mcp.callTool('request_review', { source: { kind: 'patch', text: PATCH } });

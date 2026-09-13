@@ -126,28 +126,6 @@ describe('removeRound', () => {
   });
 });
 
-describe('exportReview', () => {
-  it('lists every thread with a comment, notes and delivered ones included, and marks nothing delivered', () => {
-    const { store, roundId } = fixture();
-    const a = store.addThread(roundId, { file: 'src/auth/session.ts', side: 'right', newLine: 42 }, 'human', 'aaa');
-    store.renderReview(roundId, [a.id]);
-    const { markdown, threadCount } = store.exportReview(roundId);
-    assert.equal(threadCount, 2);
-    assert.ok(markdown.startsWith('# Review: unstaged changes, 1 comment in 2 files'), markdown);
-    assert.ok(markdown.includes('aaa'));
-    assert.ok(markdown.includes('moved next() after the audit write'));
-    assert.ok(!markdown.includes('resolve_comment'));
-    assert.equal(store.thread(a.id)?.delivered, true);
-    assert.equal(store.renderReview(roundId).delivered.length, 0);
-  });
-
-  it('says so when the round has no comments', () => {
-    const store = new ReviewStore(memoryPersistence());
-    const round = store.createRound({ source: { kind: 'patch', text: 'x' } });
-    assert.equal(store.exportReview(round.id).markdown, '# Review: patch, 0 comments in 0 files\n\nNo comments.\n');
-  });
-});
-
 describe('renderReview', () => {
   it('produces candidate-C markdown for two files and three threads', () => {
     const { store, roundId } = fixture();

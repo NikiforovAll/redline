@@ -100,8 +100,8 @@
         "icon": "$(trash)"
       },
       {
-        "command": "redline.copyReview",
-        "title": "Redline: Copy review",
+        "command": "redline.copyRoundId",
+        "title": "Redline: Copy round id",
         "icon": "$(copy)"
       }
     ],
@@ -224,7 +224,7 @@
           "when": "view == redline.rounds && viewItem =~ /^redline\\.round\\./"
         },
         {
-          "command": "redline.copyReview",
+          "command": "redline.copyRoundId",
           "group": "1_manage@0",
           "when": "view == redline.rounds && viewItem =~ /^redline\\.round\\./"
         },
@@ -295,7 +295,7 @@
           "when": "view == redline.rounds"
         },
         {
-          "command": "redline.copyReview",
+          "command": "redline.copyRoundId",
           "group": "1_actions@4",
           "when": "view == redline.rounds"
         },

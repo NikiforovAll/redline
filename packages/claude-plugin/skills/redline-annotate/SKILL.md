@@ -12,6 +12,6 @@ Read `${CLAUDE_PLUGIN_ROOT}/reference/ROUND.md` first: it resolves the source fr
 
 ## Attach notes
 
-- `notes` only from text that already exists in this session: a summary you gave the user, a plan step, a commit message, a rationale you stated while editing. Map each such statement to its file, or to its hunk when you know the lines.
-- Nothing written yet: post the round without `notes`.
+- `notes` come from two places: text that already exists and inferred in this session, and text the user asks you to post, in their words. Map each note to its file, or to its hunk when you know the lines.
+- Nothing to attach: post the round without `notes`. To add a note later, call `add_notes` with the round id.
 - Shape every note you do send by `${CLAUDE_PLUGIN_ROOT}/reference/NOTES.md`: read it before writing the first one.

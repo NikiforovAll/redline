@@ -34,7 +34,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     submit: (roundId) => ui.submit(undefined, roundId),
     drop: (roundId) => ui.dropRound(roundId),
     refresh: (roundId) => ui.refreshFromSource(roundId),
-    copy: (roundId) => ui.copyReview(roundId)
+    copy: (roundId) => ui.copyRoundId(roundId)
   });
 
   context.subscriptions.push(
@@ -74,6 +74,9 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         ui.expandThread(threadId);
       },
       onThreadSeeded: (threadId) => ui.showThread(threadId),
+      onNotesAdded: (_roundId, threadIds) => {
+        for (const threadId of threadIds) ui.showThread(threadId);
+      },
       onRoundDropped: (roundId) => ui.removeRound(roundId)
     }
   }).then(

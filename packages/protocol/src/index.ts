@@ -110,6 +110,11 @@ export interface RequestReviewResult extends RoundSummary {
   message: string;
 }
 
+/** Response of `POST /rounds/{id}/notes`: the round's summary and the threads the notes became. The diff is not rebuilt. */
+export interface AddNotesResult extends RoundSummary {
+  threadIds: string[];
+}
+
 export interface Round extends RoundSummary {
   source: Source;
   files: RoundFile[];

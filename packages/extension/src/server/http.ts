@@ -1,7 +1,7 @@
 import { randomBytes } from 'node:crypto';
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
 import type { AddressInfo } from 'node:net';
-import type { Anchor, RequestReview, RequestReviewResult, ReviewEvent, Source } from '@redline/protocol';
+import type { AddNotesResult, Anchor, Note, RequestReview, RequestReviewResult, ReviewEvent, Source } from '@redline/protocol';
 import { SourceUnavailableError } from '../diff/index.ts';
 import { memoryPersistence, ReviewStore, type RefreshOutcome, type StoredRound } from '../review/store.ts';
 import { roundMessage } from '../review/view-model.ts';
@@ -14,10 +14,12 @@ import {
 
 export interface ServerHooks {
   onRoundCreated?: (round: StoredRound) => void | Promise<void>;
-  /** A request on the source of an existing round; the hook rebuilds the snapshot and reports what the store did. Without it every request opens a round. */
+  /** A request on the source of an existing round, or on its id; the hook rebuilds the snapshot and reports what the store did. Without it a source request opens a round and an id request fails. */
   onRoundRefresh?: (round: StoredRound, request: RequestReview) => RefreshOutcome | Promise<RefreshOutcome>;
   onThreadResolved?: (threadId: string) => void;
   onThreadReplied?: (threadId: string) => void;
+  /** Note threads posted over `POST /rounds/{id}/notes`; the editor has no widgets for them yet. */
+  onNotesAdded?: (roundId: string, threadIds: string[]) => void;
   /** A reviewer thread seeded over `/debug/threads`; the editor has no widget for it yet. */
   onThreadSeeded?: (threadId: string) => void;
   /** A round dropped over `/debug/rounds/drop` without the editor's confirmation; the hook removes it from the store and the editor. */
@@ -53,6 +55,10 @@ function isAnchor(value: unknown): value is Anchor {
   if (!value || typeof value !== 'object') return false;
   const anchor = value as Partial<Anchor>;
   return typeof anchor.file === 'string' && (anchor.side === 'left' || anchor.side === 'right');
+}
+
+function isNotes(value: unknown): value is Note[] {
+  return Array.isArray(value) && value.length > 0 && value.every((note) => typeof note?.file === 'string');
 }
 
 const REPLAY_LIMIT = 200;
@@ -232,6 +238,23 @@ export async function startServer(options: StartServerOptions): Promise<RunningS
         return;
       }
       send(res, 200, store.wireRound(round.id));
+      return;
+    }
+    if (req.method === 'POST' && segments[0] === 'rounds' && segments.length === 3 && segments[2] === 'notes') {
+      const round = store.round(decodeURIComponent(segments[1]));
+      if (!round) {
+        send(res, 404, { error: `redline: unknown round ${segments[1]}` });
+        return;
+      }
+      const body = (await readJsonBody(req).catch(() => null)) as { notes?: unknown } | null;
+      if (!isNotes(body?.notes)) {
+        send(res, 400, { error: 'redline: add_notes needs notes, a non-empty array of {file, summary?, hunks?}' });
+        return;
+      }
+      const threadIds = store.addNotes(round.id, body.notes);
+      options.hooks?.onNotesAdded?.(round.id, threadIds);
+      const result: AddNotesResult = { ...store.summary(round.id), threadIds };
+      send(res, 200, result);
       return;
     }
     if (

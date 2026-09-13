@@ -6,7 +6,7 @@ argument-hint: "[listen]"
 
 # redline-connect
 
-Attach only; rounds come from `redline-annotate` or `redline-tour`. Never call `get_review` with `wait` unless `$ARGUMENTS` is `listen`.
+Rounds come from `redline-annotate` or `redline-tour`. While attached, a note the user asks for goes through `add_notes`: the round id is the one `request_review` returned, the one they give, else from `list_reviews`; write what they asked, shaped by `${CLAUDE_PLUGIN_ROOT}/reference/NOTES.md`. Never call `get_review` with `wait` unless `$ARGUMENTS` is `listen`.
 
 1. Call `redline_ping`. On an error, print its text verbatim and stop.
 2. Branch on its `monitor` field:

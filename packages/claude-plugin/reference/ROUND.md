@@ -2,7 +2,9 @@
 
 ## Pick the source
 
-Argument given: resolve in this order and say which reading you used.
+Argument `r` followed by digits is a round id, as **Copy round id** in VS Code puts on the clipboard: that round is the target. Find it in `list_reviews` (missing: say so and stop), pass its id as `roundId` with no `source`, and read the diff of its stored `source` as below.
+
+Any other argument: resolve in this order and say which reading you used.
 
 1. Path to an existing `.patch` or `.diff` file: `{kind: "patch", text: <file contents>}`.
 2. `staged`, `unstaged`, or `all`: `{kind: "worktree", scope: <arg>}`.
@@ -19,9 +21,9 @@ No argument:
 4. You staged your changes and nothing else is unstaged: `scope: "staged"`.
 5. Otherwise, or when you cannot tell what you changed: `scope: "all"`.
 
-## Read the diff of a range source
+## Read the diff of a targeted round
 
-The `from` and `to` of a `range` are redline spellings, not plain git arguments:
+A `worktree` source is `git diff` for `unstaged`, `git diff --cached` for `staged`, both plus untracked files for `all`. The `from` and `to` of a `range` are redline spellings, not plain git arguments:
 
 - `from` ending in dots is three-dot: `git diff <from><to>`. Otherwise `git diff <from>..<to>`.
 - `to: "worktree"`: `git diff <from>` plus untracked files.

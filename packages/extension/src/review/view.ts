@@ -151,8 +151,8 @@ export class RoundView implements vscode.TreeDataProvider<RoundNode>, vscode.Dis
         const id = roundIdFrom(arg) ?? nav.currentRound()?.id ?? (await nav.pickRoundId('Refresh which Redline review round?'));
         if (id) await actions.refresh(id);
       }),
-      vscode.commands.registerCommand('redline.copyReview', async (arg: unknown) => {
-        const id = roundIdFrom(arg) ?? nav.currentRound()?.id ?? (await nav.pickRoundId('Copy which Redline review round?'));
+      vscode.commands.registerCommand('redline.copyRoundId', async (arg: unknown) => {
+        const id = roundIdFrom(arg) ?? nav.currentRound()?.id ?? (await nav.pickRoundId('Copy the id of which Redline review round?'));
         if (id) await actions.copy(id);
       }),
       vscode.commands.registerCommand('redline.reloadView', () => this.refresh())

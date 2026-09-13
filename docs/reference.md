@@ -6,7 +6,7 @@ Claude Code skills from the `redline` plugin. Invoke them as `/redline:<name>`.
 
 | Skill              | Does                                                                                                                                                                                                               |
 | ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `redline-tour`     | Opens the current diff as a round with a numbered walkthrough: Claude picks the parts a reader must understand and notes each one, in reading order. Then invokes `redline-connect`. Takes an optional [source](/guide#source). |
+| `redline-tour`     | Opens the current diff as a round with a numbered walkthrough: Claude picks the parts a reader must understand and notes each one, in reading order. Then invokes `redline-connect`. Takes an optional [source](/guide#source) or a round id from **Copy round id**. |
 | `redline-annotate` | Opens the current diff as a round with only the notes Claude already wrote in this session, or none. Then invokes `redline-connect`. Same source argument.                                                          |
 | `redline-connect`  | Attaches the session to submits from VS Code. Confirms the monitor when one runs, else fetches submitted comments once. `redline-connect listen` polls for up to 5 minutes per call, three calls per turn.           |
 
@@ -27,7 +27,7 @@ Every chord starts with the leader `Ctrl+Alt+R` (`Cmd+Alt+R` on macOS). Press th
 | Mark resolved / Reopen thread     | `Ctrl+Alt+R R`          | Toggles resolved on the thread under the cursor.                                                                                             |
 | Redline: Compare…                 | `Ctrl+Alt+R C`          | Picks what to review, then what to compare it against, and opens or refreshes that round with no notes. Working tree and index are pickable. |
 | Redline: Refresh round            |                         | Rebuilds the round's diff from its source and moves your threads to the new lines. Threads whose lines are gone become detached.             |
-| Redline: Copy review              |                         | Copies the round's threads, Claude's notes and your comments, as markdown to the clipboard. Nothing is marked delivered.                      |
+| Redline: Copy round id            |                         | Copies the round's id, such as `r3`, to the clipboard. Paste it as the argument of `/redline:redline-tour` or `/redline:redline-annotate` to target that round. |
 | Redline: Drop review round        |                         | Removes one round from the view and storage.                                                                                                 |
 | Redline: Drop all review rounds   |                         | Removes every round.                                                                                                                         |
 | Reload view                       |                         | Reloads the round view.                                                                                                                      |
@@ -36,7 +36,7 @@ Thread commands act on the thread nearest the cursor in the active diff, else on
 
 ### Where the buttons are
 
-- **Round view** (the **Redline** panel): Compare, Submit review, previous and next note, and Drop all in the title bar. Open latest round, Refresh round, Copy review, Reload view, and Drop review round in the `...` menu. Each round row has Submit, Refresh round, and Open inline, and Copy review and Drop review round on right-click.
+- **Round view** (the **Redline** panel): Compare, Submit review, previous and next note, and Drop all in the title bar. Open latest round, Refresh round, Copy round id, Reload view, and Drop review round in the `...` menu. Each round row has Submit, Refresh round, and Open inline, and Copy round id and Drop review round on right-click.
 - **Thread title bar**: Send to Agent, Mark resolved or Reopen thread.
 - **Thread footer**: Comment, and Send to Agent, which saves the reply you are typing and sends it.
 
@@ -53,6 +53,7 @@ The plugin registers an MCP server named `redline`. Claude calls these; you rare
 | Tool              | Arguments                                                        | Does                                                                                                                                                                                                                                                       |
 | ----------------- | ---------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `request_review`  | `source` or `roundId`, `title?`, `notes?`                        | Opens a round in the VS Code window with this folder open, or refreshes the open round of the same `worktree` or `range` source. With `roundId`, refreshes that round from its stored source, so notes land in a round you opened with **Compare…**. Returns `Opened`, `Refreshed`, or `Kept` with the source label and counts. Notes on files outside the diff are dropped and reported. |
+| `add_notes`       | `roundId`, `notes`                                               | Posts notes under an existing round, each as a thread on the diff as it stands. No rebuild, no submit, no new round; use it for a remark you ask Claude to leave. |
 | `get_review`      | `roundId?`, `threads?`, `wait?` (seconds, max 300)              | Returns the submitted comments of a round as markdown and marks them delivered. Without `roundId`, the newest round with undelivered comments. With `wait`, blocks until a submit or the timeout.                                                          |
 | `list_reviews`    |                                                                  | Lists the rounds of this window, newest first, with file count, open threads, state, and source.                                                                                                                                                          |
 | `resolve_comment` | `threadId`, `body?`                                              | Closes a thread with a one-line note on what changed. VS Code shows the thread as resolved.                                                                                                                                                              |

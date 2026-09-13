@@ -1,5 +1,5 @@
 import { createInterface } from 'node:readline';
-import { attachSnapshot, memoryPersistence, ReviewStore, startServer } from '../out/server.mjs';
+import { attachSnapshot, memoryPersistence, refreshSnapshot, ReviewStore, startServer } from '../out/server.mjs';
 
 const version = process.env.REDLINE_VERSION ?? '0.0.1-proto';
 const repoRoot = process.env.REDLINE_REPO_ROOT ?? process.cwd();
@@ -13,7 +13,8 @@ const server = await startServer({
     onRoundCreated: async (round) => {
       const attached = await attachSnapshot(store, round, repoRoot);
       console.error(`proto-server: round ${round.id} has ${attached.files.length} file(s)`);
-    }
+    },
+    onRoundRefresh: (round, request) => refreshSnapshot(store, round, repoRoot, request)
   }
 });
 
