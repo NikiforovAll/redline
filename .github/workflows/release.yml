@@ -53,6 +53,7 @@ jobs:
 
       - name: Publish the extension to the VS Code marketplace
         run: npx vsce publish --packagePath dist/*.vsix --skip-duplicate
+        continue-on-error: true
         env:
           VSCE_PAT: ${{ secrets.VSCE_PAT }}
 
