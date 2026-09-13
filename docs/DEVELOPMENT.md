@@ -111,7 +111,7 @@ node packages/mcp/src/cli.mjs server
 2. In that repo, start Claude Code with the plugin (either path above) and ask it to call `redline_ping`. Without a matching VS Code window it returns the fixed `redline: no VS Code window ...` text; with one it returns the window's port.
 3. Run `/redline-annotate` to open the diff as is, or `/redline-tour` for a numbered walkthrough. The diff opens in VS Code; comment, click Submit, and the session wakes with the comments.
 
-`_plans/arev-spike/demo.md` has the longer walk-through.
+The [guide](https://nikiforovall.blog/redline/guide) has the longer walk-through.
 
 ## Playground
 

@@ -2,28 +2,28 @@
 
 Redline is a two-way code review tool for Claude Code and VS Code. Claude posts its review of a diff as comment threads on the lines in VS Code. You answer, add your own threads, and click Submit. Claude works through every thread, edits the code, and replies in place until you close it.
 
-The [docs site](https://nikiforovall.blog/redline/) has a [guide](https://nikiforovall.blog/redline/guide) that walks one round end to end and a [reference](https://nikiforovall.blog/redline/reference) for every command, shortcut, setting, MCP tool, and error text.
+![Claude posts a thread on the diff, you answer, Claude fixes the code and resolves the thread](assets/hero.gif)
 
-![A review round: the diff with agent notes and a comment thread, the Comments panel, and the Review Rounds tree](assets/review-demo.png)
+The [docs site](https://nikiforovall.blog/redline/) has a [guide](https://nikiforovall.blog/redline/guide) that walks one round end to end and a [reference](https://nikiforovall.blog/redline/reference) for every command, shortcut, setting, MCP tool, and error text.
 
 ![The loop end to end: a reviewer question in a thread, the agent's reply, and the Claude Code session that woke on submit](assets/review-interactive-demo.png)
 
 ## Install
 
-Plugin, from Claude Code:
-
-```
-/plugin marketplace add nikiforovall/redline
-/plugin install redline@redline
-```
-
-Extension: download the `.vsix` from the [latest release](https://github.com/nikiforovall/redline/releases/latest) and run **Extensions: Install from VSIX...** in VS Code, or let the plugin fetch it from a shell with `code` on PATH and `gh` signed in:
+Search for **Redline** in the VS Code Extensions view, or:
 
 ```sh
-node ~/.claude/plugins/cache/redline/redline/<version>/scripts/install-extension.mjs [--profile <name>]
+code --install-extension nikiforovall.redline-extension
 ```
 
-The plugin does nothing without the extension. Rerun the script to update it. A plugin update does not update the extension.
+The extension opens a **Get started with Redline** walkthrough. Its first step installs the Claude Code plugin with one button, which runs these in a terminal:
+
+```
+claude plugin marketplace add nikiforovall/redline
+claude plugin install redline@redline
+```
+
+The same two commands work as `/plugin marketplace add nikiforovall/redline` and `/plugin install redline@redline` inside a Claude Code session. Start a new session afterwards so it loads the skills. VS Code keeps the extension updated.
 
 ## Skills
 

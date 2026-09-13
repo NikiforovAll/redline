@@ -2,28 +2,30 @@
 
 ## Install
 
-Both halves are needed. The plugin does nothing without the extension.
+Both halves are needed: the VS Code extension renders rounds, the Claude Code plugin gives Claude the skills and the MCP server. Start with the extension; it installs the plugin for you.
+
+### Extension
+
+Search for **Redline** in the Extensions view and install it, or:
+
+```sh
+code --install-extension nikiforovall.redline-extension
+```
+
+VS Code updates the extension on its own.
 
 ### Plugin
 
-From Claude Code:
+When the extension does not find the plugin, it opens a **Get started with Redline** walkthrough. The first step has an **Install plugin** button that runs the install in a terminal and completes once the plugin appears in Claude Code's registry. Reopen the walkthrough any time with **Redline: Get started**.
+
+By hand, from Claude Code:
 
 ```
 /plugin marketplace add nikiforovall/redline
 /plugin install redline@redline
 ```
 
-This adds the skills `/redline:redline-tour`, `/redline:redline-annotate`, and `/redline:redline-connect`, and the `redline` MCP server. Start a new Claude Code session to load them.
-
-### Extension
-
-Download `redline-extension-<version>.vsix` from the [latest release](https://github.com/nikiforovall/redline/releases/latest) and install it with **Extensions: Install from VSIX...** in VS Code, or:
-
-```sh
-code --install-extension redline-extension-<version>.vsix
-```
-
-Reload open VS Code windows afterwards. Updating the plugin does not update the extension.
+Either way this adds the skills `/redline:redline-tour`, `/redline:redline-annotate`, and `/redline:redline-connect`, and the `redline` MCP server. Start a new Claude Code session to load them.
 
 ## A review round
 
@@ -65,7 +67,7 @@ The round opens without notes. To have Claude walk you through it, type `/redlin
 /redline:redline-connect
 ```
 
-Claude fetches the submitted comments and works through them. When Claude Code runs a monitor for this session, submits reach it on their own and the skill only confirms it is listening. Without one, `/redline:redline-connect listen` polls for submits for a while.
+Claude fetches the submitted comments and works through them. When Claude Code runs a monitor for this session, submits reach it on their own and the skill only confirms it is listening. Without one, `/redline:redline-connect listen` polls for submits, see [Terminal or VS Code extension](#terminal-or-vs-code-extension).
 
 ### The round view
 
@@ -88,6 +90,18 @@ The thread title bar has **Send to Agent**, which sends this one thread now with
 ### Submit
 
 Click **Submit review** in the round view title bar or press `Ctrl+Alt+R S`. Submit sends every open thread with your comment. VS Code confirms `Redline: sent 3 comments in 2 files to Claude`. When no Claude Code session is listening, VS Code queues the comments and the message tells you to run `/redline:redline-connect`.
+
+### Terminal or VS Code extension
+
+Run Claude Code in a terminal. There the plugin registers a monitor, so a submit wakes the session on its own and Claude answers without you touching the chat.
+
+The Claude Code VS Code extension runs no plugin monitors. A submit cannot wake a session in the chat panel, and `redline_ping` reports `monitor: absent` there. Pull instead:
+
+```
+/redline:redline-connect listen
+```
+
+Claude polls for submits for up to five minutes per call, three calls per turn, then asks you to run it again. Plain `/redline:redline-connect` fetches what is queued once. Polling works, but the session is busy while it waits, so keep review sessions in a terminal.
 
 ### What Claude receives
 

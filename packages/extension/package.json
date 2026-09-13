@@ -10,7 +10,7 @@
     "type": "git",
     "url": "https://github.com/nikiforovall/redline.git"
   },
-  "homepage": "https://github.com/nikiforovall/redline#readme",
+  "homepage": "https://nikiforovall.blog/redline/",
   "bugs": {
     "url": "https://github.com/nikiforovall/redline/issues"
   },
@@ -136,6 +136,58 @@
       {
         "command": "redline.cancelEditComment",
         "title": "Cancel"
+      },
+      {
+        "command": "redline.openWalkthrough",
+        "title": "Redline: Get started"
+      },
+      {
+        "command": "redline.installPlugin",
+        "title": "Redline: Install the Claude Code plugin"
+      },
+      {
+        "command": "redline.checkPlugin",
+        "title": "Redline: Check the Claude Code plugin"
+      },
+      {
+        "command": "redline.resetOnboarding",
+        "title": "Redline: Reset onboarding"
+      }
+    ],
+    "walkthroughs": [
+      {
+        "id": "redline.gettingStarted",
+        "title": "Get started with Redline",
+        "description": "Install the Claude Code plugin, open a review round, and send comments back to Claude.",
+        "steps": [
+          {
+            "id": "redline.installPlugin",
+            "title": "Install the Claude Code plugin",
+            "description": "Redline needs the redline plugin in Claude Code. The button runs the install in a terminal.\n[Install plugin](command:redline.installPlugin)\n[Check again](command:redline.checkPlugin)",
+            "media": {
+              "markdown": "media/walkthrough/install-plugin.md"
+            },
+            "completionEvents": ["onContext:redline.pluginInstalled"]
+          },
+          {
+            "id": "redline.firstRound",
+            "title": "Open a review round",
+            "description": "Ask Claude Code to /redline:redline-tour a change, or compare two refs yourself with Redline: Compare…",
+            "media": {
+              "markdown": "media/walkthrough/first-round.md"
+            },
+            "completionEvents": ["onContext:redline.hasRounds"]
+          },
+          {
+            "id": "redline.commentAndSend",
+            "title": "Comment and send back",
+            "description": "Leave comments on the diff, then send a thread or submit the whole review to Claude with Redline: Submit review.",
+            "media": {
+              "markdown": "media/walkthrough/comment-and-send.md"
+            },
+            "completionEvents": ["onCommand:redline.sendThread", "onCommand:redline.submitReview", "onCommand:redline.submitRound"]
+          }
+        ]
       }
     ],
     "viewsContainers": {
@@ -160,7 +212,13 @@
     "viewsWelcome": [
       {
         "view": "redline.rounds",
-        "contents": "No review rounds yet. Ask Claude Code to /redline:redline-tour the changes, or pick two refs to compare here and run /redline:redline-connect in Claude Code to pick up your comments.\n[Compare…](command:redline.compare)"
+        "contents": "No review rounds yet. Ask Claude Code to /redline:redline-tour the changes, or pick two refs to compare here and run /redline:redline-connect in Claude Code to pick up your comments.\n[Compare…](command:redline.compare)",
+        "when": "redline.pluginInstalled"
+      },
+      {
+        "view": "redline.rounds",
+        "contents": "Redline needs the Claude Code plugin to open rounds and pick up your comments.\n[Install the Claude Code plugin](command:redline.installPlugin)\n[Get started](command:redline.openWalkthrough)",
+        "when": "!redline.pluginInstalled"
       }
     ],
     "keybindings": [

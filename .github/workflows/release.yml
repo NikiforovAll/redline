@@ -1,0 +1,70 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  id-token: write
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    environment: release
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          registry-url: https://registry.npmjs.org
+      - run: npm ci
+
+      - name: Tag matches the package versions
+        run: |
+          tag="${GITHUB_REF_NAME}"
+          case "$tag" in v*) ;; *) echo "run this workflow from a v* tag, got $tag"; exit 1;; esac
+          version="$(npm run --silent check:versions)"
+          [ "$tag" = "v$version" ] || { echo "tag $tag but packages are at $version"; exit 1; }
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+        id: version
+
+      - run: npm run build
+      - run: npm test
+      - run: npx vsce package --no-dependencies --out ../../dist/redline-extension-${{ steps.version.outputs.version }}.vsix
+        working-directory: packages/extension
+
+      - name: Publish the server to npm
+        run: |
+          v="${{ steps.version.outputs.version }}"
+          if npm view "@nikiforovall/redline-mcp@$v" version >/dev/null 2>&1; then
+            echo "@nikiforovall/redline-mcp@$v is already on the registry"
+          else
+            npm publish -w @nikiforovall/redline-mcp --provenance --access public
+          fi
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - uses: azure/login@v2
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          allow-no-subscriptions: true
+      - name: Publish the extension to the VS Code marketplace
+        run: npx vsce publish --packagePath dist/*.vsix --skip-duplicate --azure-credential
+
+      - name: GitHub release with the vsix
+        run: |
+          tag="${GITHUB_REF_NAME}"
+          if gh release view "$tag" >/dev/null 2>&1; then
+            gh release upload "$tag" dist/*.vsix --clobber
+          else
+            gh release create "$tag" dist/*.vsix --title "$tag" --generate-notes
+          fi
+        env:
+          GH_TOKEN: ${{ github.token }}

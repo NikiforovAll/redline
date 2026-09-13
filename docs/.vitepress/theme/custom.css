@@ -81,6 +81,33 @@
   }
 }
 
+.redline-hero-video {
+  padding: 0 24px 48px;
+}
+
+.redline-hero-video video {
+  display: block;
+  width: 100%;
+  max-width: 1152px;
+  height: auto;
+  margin: 0 auto;
+  border-radius: 12px;
+  border: 1px solid var(--vp-c-divider);
+  background: var(--vp-c-bg);
+}
+
+@media (min-width: 640px) {
+  .redline-hero-video {
+    padding: 0 48px 56px;
+  }
+}
+
+@media (min-width: 960px) {
+  .redline-hero-video {
+    padding: 0 64px 64px;
+  }
+}
+
 .vp-doc img {
   cursor: zoom-in;
 }

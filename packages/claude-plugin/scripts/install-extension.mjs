@@ -46,14 +46,6 @@ try {
 }
 
 const wanted = pinned;
-try {
-  capture('gh', ['release', 'view', `v${wanted}`, '--repo', repo, '--json', 'tagName']);
-} catch {
-  fail(
-    `could not read release v${wanted} of ${repo}. Install the GitHub CLI and run "gh auth login" ` +
-      'with access to the repository.'
-  );
-}
 
 if (installed === wanted) {
   console.log(`redline: extension ${installed} is current.`);
@@ -65,6 +57,25 @@ console.log(
     ? `redline: updating the extension ${installed} -> ${wanted}`
     : `redline: installing the extension ${wanted}`
 );
+
+try {
+  exec(code, [...profile, '--install-extension', `${EXTENSION_ID}@${wanted}`, '--force'], {
+    stdio: 'inherit'
+  });
+  console.log(`redline: extension ${wanted} installed from the marketplace via ${code}. Reload VS Code to activate it.`);
+  process.exit(0);
+} catch {
+  console.log(`redline: the marketplace has no ${EXTENSION_ID}@${wanted}; trying the GitHub release.`);
+}
+
+try {
+  capture('gh', ['release', 'view', `v${wanted}`, '--repo', repo, '--json', 'tagName']);
+} catch {
+  fail(
+    `could not read release v${wanted} of ${repo}. Install the GitHub CLI and run "gh auth login" ` +
+      'with access to the repository.'
+  );
+}
 
 const staging = mkdtempSync(join(tmpdir(), 'redline-vsix-'));
 try {

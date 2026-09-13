@@ -1,6 +1,24 @@
 import DefaultTheme from "vitepress/theme";
-import type { Theme } from "vitepress";
+import { withBase, type Theme } from "vitepress";
+import { h } from "vue";
 import "./custom.css";
+
+const heroVideo = () =>
+  h("section", { class: "redline-hero-video" }, [
+    h("video", {
+      src: withBase("/hero.mp4"),
+      poster: withBase("/hero-poster.jpg"),
+      width: 1600,
+      height: 900,
+      autoplay: true,
+      muted: true,
+      loop: true,
+      playsinline: true,
+      "aria-label": "Claude posts a thread on the diff, you answer, Claude fixes the code and resolves the thread",
+    }),
+  ]);
+
+const Layout = () => h(DefaultTheme.Layout, null, { "home-hero-after": heroVideo });
 
 function expandOnClick() {
   document.addEventListener("click", (event) => {
@@ -19,6 +37,7 @@ function expandOnClick() {
 
 const theme: Theme = {
   extends: DefaultTheme,
+  Layout,
   enhanceApp() {
     if (typeof window !== "undefined") expandOnClick();
   },

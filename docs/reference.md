@@ -8,7 +8,7 @@ Claude Code skills from the `redline` plugin. Invoke them as `/redline:<name>`.
 | ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `redline-tour`     | Opens the current diff as a round with a numbered walkthrough: Claude picks the parts a reader must understand and notes each one, in reading order. Then invokes `redline-connect`. Takes an optional [source](/guide#source) or a round id from **Copy round id**. |
 | `redline-annotate` | Opens the current diff as a round with only the notes Claude already wrote in this session, or none. Then invokes `redline-connect`. Same source argument.                                                          |
-| `redline-connect`  | Attaches the session to submits from VS Code. Confirms the monitor when one runs, else fetches submitted comments once. `redline-connect listen` polls for up to 5 minutes per call, three calls per turn.           |
+| `redline-connect`  | Attaches the session to submits from VS Code. Confirms the monitor when one runs, else fetches submitted comments once. `redline-connect listen` polls for up to 5 minutes per call, three calls per turn. Use it from the Claude Code VS Code extension, which runs no monitors. |
 
 `redline-tour` and `redline-annotate` run only when you type them. `redline-connect` can also be invoked by Claude, and the two round skills invoke it.
 
@@ -32,6 +32,10 @@ Every chord starts with the leader `Ctrl+Alt+R` (`Cmd+Alt+R` on macOS). Press th
 | Redline: Drop review round        |                         | Removes one round from the view and storage.                                                                                                 |
 | Redline: Drop all review rounds   |                         | Removes every round.                                                                                                                         |
 | Reload view                       |                         | Reloads the round view.                                                                                                                      |
+| Redline: Get started              |                         | Opens the **Get started with Redline** walkthrough. It opens on its own once, when the extension does not find the Claude Code plugin.       |
+| Redline: Install the Claude Code plugin |                   | Runs the marketplace add and plugin install in a terminal. Also the button on the first walkthrough step.                                    |
+| Redline: Check the Claude Code plugin |                     | Re-reads Claude Code's plugin registry and updates the walkthrough step.                                                                     |
+| Redline: Reset onboarding         |                         | Forgets that the walkthrough was shown and opens it again.                                                                                   |
 
 Thread commands act on the thread nearest the cursor in the active diff, else on the note you last stepped to. Rebind any of them under **Keyboard Shortcuts** by searching `redline`.
 

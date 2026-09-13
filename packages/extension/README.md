@@ -2,7 +2,11 @@
 
 Code review with Claude Code, inside VS Code. Claude posts its review of a diff as comment threads on the lines. You answer, add threads of your own, and submit. Claude reads every thread, edits the code, and replies in place.
 
-This extension is the VS Code half and does nothing on its own. Install the plugin in Claude Code first:
+Docs, guide, and demo videos: [nikiforovall.blog/redline](https://nikiforovall.blog/redline/).
+
+![A review round in VS Code: the diff with Claude's notes, a reviewer question with Claude's reply, and the Claude Code session that woke on submit](https://nikiforovall.blog/redline/review-interactive-demo.png)
+
+This extension is the VS Code half and does nothing on its own. On first activation it opens a **Get started with Redline** walkthrough whose first step installs the Claude Code plugin with one button. By hand, from Claude Code:
 
 ```
 /plugin marketplace add nikiforovall/redline

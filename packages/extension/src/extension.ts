@@ -4,6 +4,7 @@ import { ReviewStore, type Persistence, type StoreState } from './review/store.t
 import { ReviewUi } from './review/ui.ts';
 import { RoundView } from './review/view.ts';
 import { startServer, type RunningServer } from './server/index.ts';
+import { Onboarding } from './onboarding.ts';
 
 const STATE_KEY = 'redline.store';
 
@@ -36,6 +37,10 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     refresh: (roundId) => ui.refreshFromSource(roundId),
     copy: (roundId) => ui.copyRoundId(roundId)
   });
+
+  const onboarding = new Onboarding(context);
+  onboarding.register();
+  void onboarding.start();
 
   context.subscriptions.push(
     vscode.commands.registerCommand('redline.clearRounds', async () => {

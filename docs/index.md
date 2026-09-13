@@ -56,13 +56,13 @@ Redline has two halves. A VS Code extension renders review rounds and collects y
 
 ## Install
 
-Plugin, from Claude Code:
+Search for **Redline** in the VS Code Extensions view, or run `code --install-extension nikiforovall.redline-extension`. The extension opens a **Get started with Redline** walkthrough whose first step installs the Claude Code plugin with one button.
+
+To install the plugin by hand, from Claude Code:
 
 ```
 /plugin marketplace add nikiforovall/redline
 /plugin install redline@redline
 ```
-
-Extension: download `redline-extension-<version>.vsix` from the [latest release](https://github.com/nikiforovall/redline/releases/latest), then in VS Code run **Extensions: Install from VSIX...** or `code --install-extension <file>.vsix`.
 
 Then read the [guide](/guide) for one round end to end.
