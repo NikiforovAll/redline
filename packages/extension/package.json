@@ -98,6 +98,11 @@
         "command": "redline.dropRound",
         "title": "Redline: Drop review round",
         "icon": "$(trash)"
+      },
+      {
+        "command": "redline.copyReview",
+        "title": "Redline: Copy review",
+        "icon": "$(copy)"
       }
     ],
     "viewsContainers": {
@@ -219,6 +224,11 @@
           "when": "view == redline.rounds && viewItem =~ /^redline\\.round\\./"
         },
         {
+          "command": "redline.copyReview",
+          "group": "1_manage@0",
+          "when": "view == redline.rounds && viewItem =~ /^redline\\.round\\./"
+        },
+        {
           "command": "redline.dropRound",
           "group": "1_manage@1",
           "when": "view == redline.rounds && viewItem =~ /^redline\\.round\\./"
@@ -282,6 +292,11 @@
         {
           "command": "redline.refreshRound",
           "group": "1_actions@3",
+          "when": "view == redline.rounds"
+        },
+        {
+          "command": "redline.copyReview",
+          "group": "1_actions@4",
           "when": "view == redline.rounds"
         },
         {

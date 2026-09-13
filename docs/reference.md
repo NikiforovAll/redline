@@ -27,6 +27,7 @@ Every chord starts with the leader `Ctrl+Alt+R` (`Cmd+Alt+R` on macOS). Press th
 | Mark resolved / Reopen thread     | `Ctrl+Alt+R R`          | Toggles resolved on the thread under the cursor.                                                                                             |
 | Redline: Compare…                 | `Ctrl+Alt+R C`          | Picks what to review, then what to compare it against, and opens or refreshes that round with no notes. Working tree and index are pickable. |
 | Redline: Refresh round            |                         | Rebuilds the round's diff from its source and moves your threads to the new lines. Threads whose lines are gone become detached.             |
+| Redline: Copy review              |                         | Copies the round's threads, Claude's notes and your comments, as markdown to the clipboard. Nothing is marked delivered.                      |
 | Redline: Drop review round        |                         | Removes one round from the view and storage.                                                                                                 |
 | Redline: Drop all review rounds   |                         | Removes every round.                                                                                                                         |
 | Reload view                       |                         | Reloads the round view.                                                                                                                      |
@@ -35,7 +36,7 @@ Thread commands act on the thread nearest the cursor in the active diff, else on
 
 ### Where the buttons are
 
-- **Round view** (the **Redline** panel): Compare, Submit review, previous and next note, and Drop all in the title bar. Open latest round, Refresh round, Reload view, and Drop review round in the `...` menu. Each round row has Submit, Refresh round, and Open inline.
+- **Round view** (the **Redline** panel): Compare, Submit review, previous and next note, and Drop all in the title bar. Open latest round, Refresh round, Copy review, Reload view, and Drop review round in the `...` menu. Each round row has Submit, Refresh round, and Open inline, and Copy review and Drop review round on right-click.
 - **Thread title bar**: Send to Agent, Mark resolved or Reopen thread.
 - **Thread footer**: Comment, and Send to Agent, which saves the reply you are typing and sends it.
 

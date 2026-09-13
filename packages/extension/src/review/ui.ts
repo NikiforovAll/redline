@@ -165,6 +165,14 @@ export class ReviewUi implements vscode.Disposable {
     return outcome;
   }
 
+  async copyReview(roundId: string): Promise<void> {
+    const round = this.store.round(roundId);
+    if (!round) return;
+    const { markdown, threadCount } = this.store.exportReview(roundId);
+    await vscode.env.clipboard.writeText(markdown);
+    void vscode.window.showInformationMessage(`Redline: copied ${plural(threadCount, 'thread')} from ${round.sourceLabel}.`);
+  }
+
   async refreshFromSource(roundId: string): Promise<void> {
     const round = this.store.round(roundId);
     if (!round) return;

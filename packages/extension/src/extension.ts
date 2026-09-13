@@ -33,7 +33,8 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   new RoundView(store, ui.navigator).register(context, {
     submit: (roundId) => ui.submit(undefined, roundId),
     drop: (roundId) => ui.dropRound(roundId),
-    refresh: (roundId) => ui.refreshFromSource(roundId)
+    refresh: (roundId) => ui.refreshFromSource(roundId),
+    copy: (roundId) => ui.copyReview(roundId)
   });
 
   context.subscriptions.push(
