@@ -251,6 +251,24 @@ function deletionOnlyFile(): StoreFile {
   };
 }
 
+describe('note order', () => {
+  it('seeds a batch by file order and line, and appends a later batch after it', () => {
+    const store = new ReviewStore(memoryPersistence());
+    const round = store.createRound({
+      source: { kind: 'worktree', scope: 'unstaged' },
+      notes: [
+        { file: 'src/http/middleware.ts', summary: 'later file' },
+        { file: 'src/auth/session.ts', summary: 'first file' }
+      ]
+    });
+    store.attachFiles(round.id, [sessionFile(), middlewareFile()]);
+    const bodies = () => store.round(round.id)!.threads.map((thread) => thread.comments[0].body);
+    assert.deepEqual(bodies(), ['first file', 'later file']);
+    store.addNotes(round.id, [{ file: 'src/auth/session.ts', summary: 'added afterwards' }]);
+    assert.deepEqual(bodies(), ['first file', 'later file', 'added afterwards']);
+  });
+});
+
 describe('note anchoring', () => {
   it('snaps a per-hunk note forward to the first added line of its hunk', () => {
     const store = new ReviewStore(memoryPersistence());
@@ -508,6 +526,54 @@ describe('hasHumanComment', () => {
     assert.equal(hasHumanComment(note), false);
     store.addComment(note.id, 'human', 'ok');
     assert.equal(hasHumanComment(note), true);
+  });
+});
+
+describe('editComment and deleteComment', () => {
+  it('edit changes the body and keeps delivered, sent, and resolved', () => {
+    const { store, roundId } = fixture();
+    const thread = store.addThread(roundId, { file: 'src/http/middleware.ts', side: 'right', newLine: 76 }, 'human', 'tpyo');
+    store.markSent(thread.id);
+    store.renderReview(roundId);
+    store.setResolved(thread.id, true);
+    const edited = store.editComment(thread.id, thread.comments[0].id, 'typo');
+    assert.equal(edited.comments[0].body, 'typo');
+    assert.equal(edited.delivered, true);
+    assert.equal(edited.sent, true);
+    assert.equal(edited.resolved, true);
+  });
+
+  it('delete of the last comment removes the thread', () => {
+    const { store, roundId } = fixture();
+    const thread = store.addThread(roundId, { file: 'src/http/middleware.ts', side: 'right', newLine: 76 }, 'human', 'gone');
+    assert.equal(store.deleteComment(thread.id, thread.comments[0].id), undefined);
+    assert.equal(store.thread(thread.id), undefined);
+    assert.equal(store.round(roundId)!.threads.some((entry) => entry.id === thread.id), false);
+  });
+
+  it('delete of the only human reply on a note keeps the note', () => {
+    const { store, roundId } = fixture();
+    const note = store.round(roundId)!.threads.find((thread) => thread.kind === 'note')!;
+    const reply = store.addComment(note.id, 'human', 'ok').comments.at(-1)!;
+    const kept = store.deleteComment(note.id, reply.id);
+    assert.equal(kept?.id, note.id);
+    assert.equal(kept?.comments.length, 1);
+    assert.equal(hasHumanComment(kept!), false);
+  });
+
+  it('delete of a human comment with a claude reply keeps the thread', () => {
+    const { store, roundId } = fixture();
+    const thread = store.addThread(roundId, { file: 'src/http/middleware.ts', side: 'right', newLine: 76 }, 'human', 'why?');
+    store.addComment(thread.id, 'claude', 'because');
+    const kept = store.deleteComment(thread.id, thread.comments[0].id);
+    assert.equal(kept?.comments.map((comment) => comment.author).join(), 'claude');
+  });
+
+  it('rejects an unknown comment id', () => {
+    const { store, roundId } = fixture();
+    const thread = store.addThread(roundId, { file: 'src/http/middleware.ts', side: 'right', newLine: 76 }, 'human', 'x');
+    assert.throws(() => store.editComment(thread.id, 'c-nope', 'y'), /unknown comment c-nope/);
+    assert.throws(() => store.deleteComment(thread.id, 'c-nope'), /unknown comment c-nope/);
   });
 });
 

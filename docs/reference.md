@@ -25,6 +25,7 @@ Every chord starts with the leader `Ctrl+Alt+R` (`Cmd+Alt+R` on macOS). Press th
 | Redline: Previous note            | `Ctrl+Alt+[`            | Jumps to the previous note. No leader.                                                                                                       |
 | Send to Agent                     | `Ctrl+Alt+R Enter`      | Sends the thread under the cursor now, without submitting the round. The thread needs your comment first.                                   |
 | Mark resolved / Reopen thread     | `Ctrl+Alt+R R`          | Toggles resolved on the thread under the cursor.                                                                                             |
+| Edit comment / Delete comment     |                         | On your own comments, in the comment's title bar. Edit opens the text in place; Save or Cancel finish it. Neither changes what Claude already fetched, and neither reopens or re-queues the thread. Deleting the last comment removes the thread. |
 | Redline: Compare…                 | `Ctrl+Alt+R C`          | Picks what to review, then what to compare it against, and opens or refreshes that round with no notes. Working tree and index are pickable. |
 | Redline: Refresh round            |                         | Rebuilds the round's diff from its source and moves your threads to the new lines. Threads whose lines are gone become detached.             |
 | Redline: Copy round id            |                         | Copies the round's id, such as `r3`, to the clipboard. Paste it as the argument of `/redline:redline-tour` or `/redline:redline-annotate` to target that round. |
@@ -38,6 +39,7 @@ Thread commands act on the thread nearest the cursor in the active diff, else on
 
 - **Round view** (the **Redline** panel): Compare, Submit review, previous and next note, and Drop all in the title bar. Open latest round, Refresh round, Copy round id, Reload view, and Drop review round in the `...` menu. Each round row has Submit, Refresh round, and Open inline, and Copy round id and Drop review round on right-click.
 - **Thread title bar**: Send to Agent, Mark resolved or Reopen thread.
+- **Comment title bar**, on your comments only: Edit comment, Delete comment.
 - **Thread footer**: Comment, and Send to Agent, which saves the reply you are typing and sends it.
 
 ## Settings

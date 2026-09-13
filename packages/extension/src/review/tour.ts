@@ -1,4 +1,4 @@
-import type { Thread } from '@redline/protocol';
+import type { Anchor, Thread } from '@redline/protocol';
 import type { StoredRound } from './store.ts';
 
 const TOUR_PREFIX = /^\s*\*\*\[(\d+)\/\d+\]\*\*\s*/;
@@ -12,9 +12,9 @@ export function stripTourPrefix(text: string): string {
   return text.replace(TOUR_PREFIX, '');
 }
 
-/** Every thread in reading order: numbered tour notes first, then the rest by file and line. */
+/** Every thread in reading order: numbered tour notes first, then the rest as they were posted. */
 export function allNotes(round: StoredRound): Thread[] {
-  return tourOrder(round.threads, round.files.map((file) => file.path));
+  return tourOrder(round.threads);
 }
 
 /** Unresolved threads in reading order. */
@@ -28,24 +28,26 @@ export function notePosition(round: StoredRound, thread: Thread): string {
   return `${ordered.findIndex((entry) => entry.id === thread.id) + 1}/${ordered.length}`;
 }
 
-export function anchorSortLine(thread: Thread): number {
-  return thread.anchor.newLine ?? thread.anchor.oldLine ?? 0;
+export function anchorSortLine(anchor: Anchor): number {
+  return anchor.newLine ?? anchor.oldLine ?? 0;
 }
 
-/** Tour-numbered threads first in tour order, then the rest by file order and line. */
-export function tourOrder(threads: readonly Thread[], fileOrder: readonly string[]): Thread[] {
-  const fileIndex = (thread: Thread) => {
-    const index = fileOrder.indexOf(thread.anchor.file);
-    return index === -1 ? fileOrder.length : index;
-  };
+/** Tour-numbered threads first in tour order, then the rest in the order they were posted, so a note added later lands after the ones the reviewer already walked. */
+export function tourOrder(threads: readonly Thread[]): Thread[] {
   return [...threads].sort((a, b) => {
     const na = tourNumber(a);
     const nb = tourNumber(b);
     if (na !== undefined && nb !== undefined) return na - nb;
     if (na !== undefined) return -1;
     if (nb !== undefined) return 1;
-    return fileIndex(a) - fileIndex(b) || anchorSortLine(a) - anchorSortLine(b);
+    return 0;
   });
+}
+
+/** Position of a file in the round, files the round lacks last. */
+export function fileIndex(fileOrder: readonly string[], file: string): number {
+  const index = fileOrder.indexOf(file);
+  return index === -1 ? fileOrder.length : index;
 }
 
 export function stepIndex(current: number | undefined, delta: 1 | -1, length: number): number {

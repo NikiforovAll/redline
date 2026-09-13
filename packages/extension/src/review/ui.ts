@@ -28,6 +28,17 @@ export interface UiEvent {
 
 const QUEUED_HINT = 'Queued; /redline:redline-connect in Claude Code picks it up.';
 
+/** The widget hands the same object back to comment commands, so the stored ids ride on it. `savedBody` is the stored markdown, which the edit box shows in place of the rendered body. */
+interface RedlineComment extends vscode.Comment {
+  threadId: string;
+  commentId: string;
+  savedBody: string;
+}
+
+function isRedlineComment(value: unknown): value is RedlineComment {
+  return typeof value === 'object' && value !== null && 'commentId' in value && 'threadId' in value;
+}
+
 function humanName(): string {
   try {
     return userInfo().username || 'You';
@@ -91,10 +102,7 @@ export class ReviewUi implements vscode.Disposable {
     const next = (await this.githubIdentity()) ?? this.localIdentity;
     if (next === this.human) return;
     this.human = next;
-    for (const [threadId, thread] of this.byThreadId) {
-      thread.canReply = this.human;
-      this.refreshThread(threadId);
-    }
+    for (const threadId of this.byThreadId.keys()) this.refreshThread(threadId);
   }
 
   private async githubIdentity(): Promise<vscode.CommentAuthorInformation | undefined> {
@@ -241,11 +249,14 @@ export class ReviewUi implements vscode.Disposable {
     );
   }
 
-  private commentsOf(thread: Thread): vscode.Comment[] {
+  private commentsOf(thread: Thread): RedlineComment[] {
     const side = sideLabel(thread.anchor.side);
     return thread.comments.map((comment) => {
       const fromClaude = comment.author === 'claude';
       return {
+        threadId: thread.id,
+        commentId: comment.id,
+        savedBody: comment.body,
         author: fromClaude
           ? { name: AGENT_LABEL, iconPath: this.agentIcon }
           : this.human,
@@ -256,6 +267,42 @@ export class ReviewUi implements vscode.Disposable {
         contextValue: fromClaude ? 'redline.claude' : 'redline.human'
       };
     });
+  }
+
+  private editComment(comment: unknown): void {
+    if (!isRedlineComment(comment)) return;
+    const thread = this.byThreadId.get(comment.threadId);
+    if (!thread) return;
+    thread.comments = thread.comments.map((entry) =>
+      entry === comment ? { ...comment, body: comment.savedBody, mode: vscode.CommentMode.Editing } : entry
+    );
+  }
+
+  /** VS Code writes the edited text into `body` before invoking save. An empty body saves nothing and behaves as cancel. */
+  private saveComment(comment: unknown): void {
+    if (!isRedlineComment(comment)) return;
+    const raw = typeof comment.body === 'string' ? comment.body : comment.body.value;
+    const text = raw.trim();
+    if (text.length > 0 && text !== comment.savedBody && this.store.thread(comment.threadId)) {
+      this.store.editComment(comment.threadId, comment.commentId, text);
+    }
+    this.refreshThread(comment.threadId);
+  }
+
+  private deleteComment(comment: unknown): void {
+    if (!isRedlineComment(comment)) return;
+    if (!this.store.thread(comment.threadId)) return;
+    const survivor = this.store.deleteComment(comment.threadId, comment.commentId);
+    if (survivor) {
+      this.refreshThread(comment.threadId);
+      return;
+    }
+    const widget = this.byThreadId.get(comment.threadId);
+    if (!widget) return;
+    widget.dispose();
+    this.byThreadId.delete(comment.threadId);
+    this.idByThread.delete(widget);
+    this.roundIdByThreadId.delete(comment.threadId);
   }
 
   private decorate(round: StoredRound, stored: Thread, thread: vscode.CommentThread): void {
@@ -333,7 +380,8 @@ export class ReviewUi implements vscode.Disposable {
       new vscode.Range(line, 0, line, 0),
       this.commentsOf(stored)
     );
-    thread.canReply = this.human;
+    // VS Code lays out the reply editor at full width even when canReply carries an avatar (commentReply.ts, `widthInPixel - 54`), so the avatar makes the input overflow the widget. `true` keeps the row avatar-free.
+    thread.canReply = true;
     thread.collapsibleState = vscode.CommentThreadCollapsibleState.Expanded;
     this.decorate(round, stored, thread);
     this.byThreadId.set(stored.id, thread);
@@ -536,6 +584,12 @@ export class ReviewUi implements vscode.Disposable {
       vscode.commands.registerCommand('redline.reopenThread', (thread?: vscode.CommentThread) =>
         this.toggleResolved(thread)
       ),
+      vscode.commands.registerCommand('redline.editComment', (comment: unknown) => this.editComment(comment)),
+      vscode.commands.registerCommand('redline.saveComment', (comment: unknown) => this.saveComment(comment)),
+      vscode.commands.registerCommand('redline.cancelEditComment', (comment: unknown) => {
+        if (isRedlineComment(comment)) this.refreshThread(comment.threadId);
+      }),
+      vscode.commands.registerCommand('redline.deleteComment', (comment: unknown) => this.deleteComment(comment)),
       vscode.commands.registerCommand('redline.openRound', () => nav.pickRound()),
       vscode.commands.registerCommand('redline.openLatestRound', () => nav.openLatestRound()),
       vscode.commands.registerCommand('redline.nextNote', () => nav.stepNote(1)),

@@ -103,6 +103,24 @@
         "command": "redline.copyRoundId",
         "title": "Redline: Copy round id",
         "icon": "$(copy)"
+      },
+      {
+        "command": "redline.editComment",
+        "title": "Edit comment",
+        "icon": "$(edit)"
+      },
+      {
+        "command": "redline.deleteComment",
+        "title": "Delete comment",
+        "icon": "$(trash)"
+      },
+      {
+        "command": "redline.saveComment",
+        "title": "Save"
+      },
+      {
+        "command": "redline.cancelEditComment",
+        "title": "Cancel"
       }
     ],
     "viewsContainers": {
@@ -244,6 +262,30 @@
           "command": "redline.sendThread",
           "group": "inline@2",
           "when": "commentController == redline && !(commentThread =~ /^redline\\.resolved\\./)"
+        }
+      ],
+      "comments/comment/title": [
+        {
+          "command": "redline.editComment",
+          "group": "inline@1",
+          "when": "commentController == redline && comment == redline.human"
+        },
+        {
+          "command": "redline.deleteComment",
+          "group": "inline@2",
+          "when": "commentController == redline && comment == redline.human"
+        }
+      ],
+      "comments/comment/context": [
+        {
+          "command": "redline.saveComment",
+          "group": "inline@1",
+          "when": "commentController == redline && comment == redline.human"
+        },
+        {
+          "command": "redline.cancelEditComment",
+          "group": "inline@2",
+          "when": "commentController == redline && comment == redline.human"
         }
       ],
       "comments/commentThread/title": [

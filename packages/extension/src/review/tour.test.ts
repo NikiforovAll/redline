@@ -24,21 +24,17 @@ describe('tourNumber', () => {
 });
 
 describe('tourOrder', () => {
-  it('walks tour numbers first, then file order and line', () => {
-    const files = ['src/a.ts', 'src/b.ts'];
-    const ordered = tourOrder(
-      [
-        thread('b-9', 'src/b.ts', 9, 'unnumbered'),
-        thread('t2', 'src/b.ts', 1, '**[2/2]** second'),
-        thread('a-40', 'src/a.ts', 40, 'unnumbered'),
-        thread('t1', 'src/a.ts', 99, '**[1/2]** first'),
-        thread('a-3', 'src/a.ts', 3, 'unnumbered')
-      ],
-      files
-    );
+  it('walks tour numbers first, then the rest as posted', () => {
+    const ordered = tourOrder([
+      thread('b-9', 'src/b.ts', 9, 'unnumbered'),
+      thread('t2', 'src/b.ts', 1, '**[2/2]** second'),
+      thread('a-40', 'src/a.ts', 40, 'unnumbered'),
+      thread('t1', 'src/a.ts', 99, '**[1/2]** first'),
+      thread('a-3', 'src/a.ts', 3, 'unnumbered')
+    ]);
     assert.deepEqual(
       ordered.map((entry) => entry.id),
-      ['t1', 't2', 'a-3', 'a-40', 'b-9']
+      ['t1', 't2', 'b-9', 'a-40', 'a-3']
     );
   });
 });
