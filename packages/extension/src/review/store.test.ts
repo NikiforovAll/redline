@@ -82,6 +82,9 @@ describe('sourceLabel', () => {
     assert.equal(sourceLabel({ kind: 'worktree', scope: 'unstaged' }), 'unstaged changes');
     assert.equal(sourceLabel({ kind: 'worktree', scope: 'all' }), 'all changes');
     assert.equal(sourceLabel({ kind: 'range', from: 'main', to: 'HEAD' }), 'main..HEAD');
+    assert.equal(sourceLabel({ kind: 'range', from: 'main...', to: 'feature' }), 'main...feature');
+    assert.equal(sourceLabel({ kind: 'range', from: 'main...feature', to: '' }), 'main...feature');
+    assert.equal(sourceLabel({ kind: 'range', from: 'main', to: 'worktree' }), 'main..worktree');
     assert.equal(sourceLabel({ kind: 'patch', text: '' }), 'patch');
     assert.equal(
       sourceLabel({ kind: 'files', pairs: [{ left: 'a', right: 'b' }, { left: 'c', right: 'd' }] }),

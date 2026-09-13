@@ -2,7 +2,7 @@ import { execFile } from 'node:child_process';
 import { readFile } from 'node:fs/promises';
 import * as path from 'node:path';
 import { promisify } from 'node:util';
-import type { FileStatus, Source } from '@redline/protocol';
+import { INDEX_SIDE, WORKTREE_SIDE, type FileStatus, type Source } from '@redline/protocol';
 import { parsePatch, sideFromHunks, type Hunk, type ParsedFile } from './parse.ts';
 
 const execFileAsync = promisify(execFile);
@@ -58,7 +58,7 @@ export async function git(repoRoot: string, args: string[]): Promise<string> {
   return stdout;
 }
 
-async function gitOrNull(repoRoot: string, args: string[]): Promise<string | null> {
+export async function gitOrNull(repoRoot: string, args: string[]): Promise<string | null> {
   try {
     return await git(repoRoot, args);
   } catch {
@@ -187,23 +187,28 @@ function wholeFileHunk(content: string): Hunk {
   };
 }
 
-async function worktreeSnapshot(repoRoot: string, scope: 'staged' | 'unstaged' | 'all'): Promise<RoundSnapshot> {
+/** Uncommitted work against `baseRev`: `staged` reads the index, `all` reads the disk, `unstaged` reads disk against index and ignores `baseRev`. */
+async function worktreeSnapshot(
+  repoRoot: string,
+  scope: 'staged' | 'unstaged' | 'all',
+  baseRev = 'HEAD'
+): Promise<RoundSnapshot> {
   if (scope === 'staged') {
-    const patch = await gitDiff(repoRoot, ['--cached']);
+    const patch = await gitDiff(repoRoot, ['--cached', baseRev]);
     const files = await buildEntries(
       patch,
-      (file) => showBlob(repoRoot, 'HEAD', file.oldPath as string),
+      (file) => showBlob(repoRoot, baseRev, file.oldPath as string),
       (file) => gitOrNull(repoRoot, ['show', `:${file.newPath as string}`])
     );
     return { files };
   }
 
   // Untracked files are unstaged work too: `git status` lists them, `git diff` does not.
-  const base = scope === 'unstaged' ? [] : ['HEAD'];
+  const base = scope === 'unstaged' ? [] : [baseRev];
   const loadLeft =
     scope === 'unstaged'
       ? (file: ParsedFile) => gitOrNull(repoRoot, ['show', `:${file.oldPath as string}`])
-      : (file: ParsedFile) => showBlob(repoRoot, 'HEAD', file.oldPath as string);
+      : (file: ParsedFile) => showBlob(repoRoot, baseRev, file.oldPath as string);
   const patch = await gitDiff(repoRoot, base);
   const [tracked, untracked] = await Promise.all([
     buildEntries(patch, loadLeft, (file) => readDisk(repoRoot, file.newPath as string)),
@@ -212,36 +217,32 @@ async function worktreeSnapshot(repoRoot: string, scope: 'staged' | 'unstaged' |
   return { files: [...tracked, ...untracked] };
 }
 
-interface RangeSpec {
+export interface RangeSpec {
   spec: string;
   threeDot: boolean;
   leftRev: string;
   rightRev: string;
 }
 
-function splitRange(from: string, to: string): RangeSpec {
-  if (!to) {
-    const threeDot = from.includes('...');
-    const [rawLeft, rawRight] = from.split(threeDot ? '...' : '..');
-    return {
-      spec: from,
-      threeDot,
-      leftRev: rawLeft || 'HEAD',
-      rightRev: rawRight || 'HEAD'
-    };
+/** Accepts every spelling a client sends, `a..b` in `from` alone, `a` and `b`, or `a...` and `b`, and returns one canonical spec so equal ranges get equal labels. A sentinel `to` is kept as is. */
+export function splitRange(from: string, to: string): RangeSpec {
+  if (to === WORKTREE_SIDE || to === INDEX_SIDE) {
+    const leftRev = from.replace(/\.+$/, '') || 'HEAD';
+    return { spec: `${leftRev}..${to}`, threeDot: false, leftRev, rightRev: to };
   }
-  const threeDot = from.endsWith('.') || to.startsWith('.');
-  return {
-    spec: threeDot ? `${from}${to}` : `${from}..${to}`,
-    threeDot,
-    leftRev: from.replace(/\.+$/, '') || 'HEAD',
-    rightRev: to.replace(/^\.+/, '') || 'HEAD'
-  };
+  const joined = !to ? from : from.endsWith('.') ? `${from}${to}` : `${from}..${to}`;
+  const threeDot = joined.includes('...');
+  const [rawLeft, rawRight] = joined.split(threeDot ? '...' : '..');
+  const leftRev = rawLeft || 'HEAD';
+  const rightRev = rawRight || 'HEAD';
+  return { spec: `${leftRev}${threeDot ? '...' : '..'}${rightRev}`, threeDot, leftRev, rightRev };
 }
 
 async function rangeSnapshot(repoRoot: string, from: string, to: string): Promise<RoundSnapshot> {
   const range = splitRange(from, to);
   const { spec, threeDot, rightRev } = range;
+  if (rightRev === WORKTREE_SIDE) return worktreeSnapshot(repoRoot, 'all', range.leftRev);
+  if (rightRev === INDEX_SIDE) return worktreeSnapshot(repoRoot, 'staged', range.leftRev);
   let leftRev = range.leftRev;
   const patch = await gitDiff(repoRoot, [spec]);
   if (threeDot) {

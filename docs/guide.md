@@ -53,11 +53,13 @@ Every stop is a normal thread. Reply on one to ask about that hunk, submit, and 
 
 ### Source
 
-Both skills take an optional source: `staged`, `unstaged`, `all`, a ref or range such as `main` or `a..b`, a `.patch` file, or `--files <left> <right>`. Without one, Claude uses its own changes.
+Both skills take an optional source: `staged`, `unstaged`, `all`, a ref or range such as `main`, `a..b`, or `main..worktree`, a `.patch` file, or `--files <left> <right>`. Without one, Claude uses its own changes.
 
-### You start: Review working tree
+### You start: Compare
 
-In VS Code, open the **Redline** view (secondary sidebar, toggle it with `Ctrl+Alt+B`) and click **Review working tree**, or run `Redline: Review working tree` from the Command Palette. The round opens without notes. Write your threads, submit, then in Claude Code type:
+In VS Code, open the **Redline** view (secondary sidebar, toggle it with `Ctrl+Alt+B`) and click **Compare…**, or press `Ctrl+Alt+R C`. Two quick picks follow, in the order GitLens uses. The first asks what to review: **Working tree**, **Index**, `HEAD`, a branch, a remote branch, or a tag; you can also type a commit hash or any revision, checked before you can choose it. The second asks what to compare it against, with the default branch preselected, so **Working tree** then Enter twice reviews your uncommitted work against `main`. A branch as base gives the pull-request view, only what the branch added since it forked. Picking a pair with no differences shows a message and opens nothing.
+
+The round opens without notes. To have Claude walk you through it, type `/redline:redline-tour` in Claude Code with no argument: it targets the newest round in the view, whatever pair you picked, and adds its title and numbered notes there instead of opening a second round. Or write your threads first, submit, then in Claude Code type:
 
 ```
 /redline:redline-connect

@@ -25,7 +25,7 @@ Every chord starts with the leader `Ctrl+Alt+R` (`Cmd+Alt+R` on macOS). Press th
 | Redline: Previous note            | `Ctrl+Alt+[`            | Jumps to the previous note. No leader.                                                                                                       |
 | Send to Agent                     | `Ctrl+Alt+R Enter`      | Sends the thread under the cursor now, without submitting the round. The thread needs your comment first.                                   |
 | Mark resolved / Reopen thread     | `Ctrl+Alt+R R`          | Toggles resolved on the thread under the cursor.                                                                                             |
-| Redline: Review working tree      |                         | Opens a round of the working tree with no notes, for a review you start yourself.                                                            |
+| Redline: Compare…                 | `Ctrl+Alt+R C`          | Picks what to review, then what to compare it against, and opens or refreshes that round with no notes. Working tree and index are pickable. |
 | Redline: Refresh round            |                         | Rebuilds the round's diff from its source and moves your threads to the new lines. Threads whose lines are gone become detached.             |
 | Redline: Drop review round        |                         | Removes one round from the view and storage.                                                                                                 |
 | Redline: Drop all review rounds   |                         | Removes every round.                                                                                                                         |
@@ -35,7 +35,7 @@ Thread commands act on the thread nearest the cursor in the active diff, else on
 
 ### Where the buttons are
 
-- **Round view** (the **Redline** panel): Submit review, previous and next note, and Drop all in the title bar. Review working tree, Open latest round, Refresh round, Reload view, and Drop review round in the `...` menu. Each round row has Submit, Refresh round, and Open inline.
+- **Round view** (the **Redline** panel): Compare, Submit review, previous and next note, and Drop all in the title bar. Open latest round, Refresh round, Reload view, and Drop review round in the `...` menu. Each round row has Submit, Refresh round, and Open inline.
 - **Thread title bar**: Send to Agent, Mark resolved or Reopen thread.
 - **Thread footer**: Comment, and Send to Agent, which saves the reply you are typing and sends it.
 
@@ -51,9 +51,9 @@ The plugin registers an MCP server named `redline`. Claude calls these; you rare
 
 | Tool              | Arguments                                                        | Does                                                                                                                                                                                                                                                       |
 | ----------------- | ---------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `request_review`  | `source`, `title?`, `notes?`                                     | Opens a round in the VS Code window with this folder open, or refreshes the open round of the same `worktree` or `range` source. Returns `Opened`, `Refreshed`, or `Kept` with the source label and counts. Notes on files outside the diff are dropped and reported. |
+| `request_review`  | `source` or `roundId`, `title?`, `notes?`                        | Opens a round in the VS Code window with this folder open, or refreshes the open round of the same `worktree` or `range` source. With `roundId`, refreshes that round from its stored source, so notes land in a round you opened with **Compare…**. Returns `Opened`, `Refreshed`, or `Kept` with the source label and counts. Notes on files outside the diff are dropped and reported. |
 | `get_review`      | `roundId?`, `threads?`, `wait?` (seconds, max 300)              | Returns the submitted comments of a round as markdown and marks them delivered. Without `roundId`, the newest round with undelivered comments. With `wait`, blocks until a submit or the timeout.                                                          |
-| `list_reviews`    |                                                                  | Lists the rounds of this window, newest first, with file count, open threads, and state.                                                                                                                                                                  |
+| `list_reviews`    |                                                                  | Lists the rounds of this window, newest first, with file count, open threads, state, and source.                                                                                                                                                          |
 | `resolve_comment` | `threadId`, `body?`                                              | Closes a thread with a one-line note on what changed. VS Code shows the thread as resolved.                                                                                                                                                              |
 | `reply_comment`   | `threadId`, `body`                                               | Posts a reply and leaves the thread open for the reviewer.                                                                                                                                                                                                 |
 | `redline_ping`    |                                                                  | Finds the window and returns its port, app, version, workspace folders, and a `monitor` field: `armed` when a submit will wake this session on its own, `absent` or `unknown` otherwise.                                                                    |
@@ -62,7 +62,7 @@ The plugin registers an MCP server named `redline`. Claude calls these; you rare
 
 ```json
 { "kind": "worktree", "scope": "staged" | "unstaged" | "all" }
-{ "kind": "range", "from": "main", "to": "HEAD" }
+{ "kind": "range", "from": "main", "to": "HEAD" | "worktree" | "index" }
 { "kind": "patch", "text": "<unified diff>" }
 { "kind": "files", "pairs": [{ "left": "a.ts", "right": "b.ts" }] }
 ```

@@ -91,7 +91,7 @@ test('POST /rounds creates a round, runs the hook, and returns the summary', asy
 test('POST /rounds rejects a body with no source', async () => {
   const { status, body } = await api('/rounds', { method: 'POST', body: '{}' });
   assert.equal(status, 400);
-  assert.match(body.error, /needs a source/);
+  assert.match(body.error, /needs a roundId, or a source/);
 });
 
 test('GET /rounds lists summaries newest first', async () => {
@@ -344,9 +344,21 @@ test('POST /rounds on the source of an open round refreshes it through the hook 
     const patch = await post({ source: { kind: 'patch', text: 'x' } });
     assert.equal(patch.outcome, 'opened');
     assert.notEqual(patch.id, opened.id);
+    const byId = await post({ roundId: opened.id, title: 'third', notes: [{ file: 'src/app.ts', summary: 'by id' }] });
+    assert.equal(byId.id, opened.id);
+    assert.equal(byId.outcome, 'refreshed');
+    assert.equal(byId.title, 'third');
+    assert.deepEqual(byId.source, { kind: 'worktree', scope: 'staged' });
+    assert.deepEqual(refreshed, ['second', 'empty', 'third']);
   } finally {
     await other.close();
   }
+});
+
+test('POST /rounds with an unknown roundId 404s', async () => {
+  const { status, body } = await api('/rounds', { method: 'POST', body: JSON.stringify({ roundId: 'nope' }) });
+  assert.equal(status, 404);
+  assert.equal(body.error, 'redline: unknown round nope');
 });
 
 test('routes stay behind the bearer token', async () => {

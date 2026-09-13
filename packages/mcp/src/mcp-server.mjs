@@ -68,7 +68,7 @@ function toolError(err) {
 const SOURCE_SCHEMA = {
   type: 'object',
   description:
-    'One of {kind:"worktree",scope:"staged"|"unstaged"|"all"}, {kind:"range",from,to}, {kind:"patch",text}, {kind:"files",pairs:[{left,right}]}.',
+    'One of {kind:"worktree",scope:"staged"|"unstaged"|"all"}, {kind:"range",from,to}, {kind:"patch",text}, {kind:"files",pairs:[{left,right}]}. A range `to` of "worktree" or "index" compares the ref in `from` against the files on disk or the staged files.',
   properties: {
     kind: { type: 'string', enum: ['worktree', 'range', 'patch', 'files'] },
     scope: { type: 'string', enum: ['staged', 'unstaged', 'all'] },
@@ -112,15 +112,16 @@ const TOOLS = [
   {
     name: 'request_review',
     description:
-      'Open a diff as a review round in VS Code, or refresh the open round on the same worktree scope or range so the reviewer sees the current diff with their threads carried over. Returns at once; invoke the redline-connect skill next.',
+      'Open a diff as a review round in VS Code, or refresh the open round on the same worktree scope or range so the reviewer sees the current diff with their threads carried over. ' +
+      'With roundId instead of source, refresh that round (a round the reviewer opened with Compare, or one from list_reviews) from its stored source and attach the title and notes to it. Returns at once; invoke the redline-connect skill next.',
     inputSchema: {
       type: 'object',
       properties: {
         source: SOURCE_SCHEMA,
+        roundId: { type: 'string', description: 'An existing round id from list_reviews. Replaces source.' },
         title: { type: 'string' },
         notes: { type: 'array', items: NOTE_SCHEMA }
-      },
-      required: ['source']
+      }
     }
   },
   {
@@ -257,7 +258,10 @@ const handlers = {
     const window = await discover(process.cwd());
     const summary = await call(
       '/rounds',
-      { method: 'POST', body: JSON.stringify({ source: args.source, title: args.title, notes: args.notes }) },
+      {
+        method: 'POST',
+        body: JSON.stringify({ roundId: args.roundId, source: args.source, title: args.title, notes: args.notes })
+      },
       window
     );
     const unmatched = summary.unmatchedNoteFiles ?? [];
@@ -313,7 +317,8 @@ const handlers = {
               (round) =>
                 `${round.id}  ${round.sourceLabel}  ${round.fileCount} files  ` +
                 `${round.openThreads} open  ${round.submittedAt ? 'submitted' : 'in review'}` +
-                (round.title ? `  ${round.title}` : '')
+                (round.title ? `  ${round.title}` : '') +
+                (round.source.kind === 'worktree' || round.source.kind === 'range' ? `  source=${JSON.stringify(round.source)}` : '')
             )
             .join('\n');
     return withHint(text);

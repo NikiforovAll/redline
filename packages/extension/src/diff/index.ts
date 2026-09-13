@@ -1,5 +1,6 @@
-export { buildSnapshot, git, SourceUnavailableError } from './sources.ts';
+export { buildSnapshot, git, gitOrNull, splitRange, SourceUnavailableError } from './sources.ts';
 export type {
+  RangeSpec,
   RoundSnapshot,
   SnapshotFile,
   SnapshotStatus,

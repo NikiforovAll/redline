@@ -1,12 +1,13 @@
 import { userInfo } from 'node:os';
 import * as vscode from 'vscode';
 import type { Anchor, Author, RequestReview, Thread } from '@redline/protocol';
-import { REDLINE_SCHEME } from '../diff/index.ts';
+import { buildSnapshot, REDLINE_SCHEME } from '../diff/index.ts';
 import { attachSnapshot, refreshSnapshot } from '../server/snapshot.ts';
+import { pickComparison } from './compare.ts';
 import { AGENT_LABEL, COMMENT_OPTIONS, sideLabel, threadDecoration } from './decoration.ts';
 import { absolutizeLinks } from './markdown.ts';
 import { RoundNavigator } from './navigator.ts';
-import { hasHumanComment, threadLine, type RefreshOutcome, type ReviewStore, type StoredRound } from './store.ts';
+import { hasHumanComment, sourceLabel, threadLine, type RefreshOutcome, type ReviewStore, type StoredRound } from './store.ts';
 import { plural, roundMessage } from './view-model.ts';
 
 /** Each emitter returns whether at least one agent stream received the event. */
@@ -482,13 +483,28 @@ export class ReviewUi implements vscode.Disposable {
     this.refreshThread(id);
   }
 
-  private async reviewWorktree(): Promise<void> {
-    const round = this.store.createRound({
-      source: { kind: 'worktree', scope: 'all' },
-      title: 'manual worktree review'
-    });
+  /** The reviewer's own round: no title, no notes. Same create-or-refresh path as `POST /rounds`, so a later `request_review` on the pair lands in this round. */
+  private async compare(): Promise<void> {
+    if (!this.repoRoot) {
+      void vscode.window.showWarningMessage('Redline: open a folder to compare.');
+      return;
+    }
+    const source = await pickComparison(this.repoRoot);
+    if (!source) return;
     try {
-      await this.materialize(round);
+      const existing = this.store.findOpenRound(source);
+      if (existing) {
+        const outcome = await this.refresh(existing);
+        void vscode.window.showInformationMessage(`Redline: ${roundMessage(existing, outcome)}.`);
+        return;
+      }
+      const snapshot = await buildSnapshot(source, this.repoRoot);
+      if (snapshot.files.length === 0) {
+        void vscode.window.showInformationMessage(`Redline: no changes in ${sourceLabel(source)}.`);
+        return;
+      }
+      const round = this.store.createRound({ source });
+      await this.materialize(this.store.attachFiles(round.id, snapshot.files, snapshot.partial));
     } catch (err) {
       void vscode.window.showErrorMessage(`Redline: ${String(err)}`);
     }
@@ -517,7 +533,7 @@ export class ReviewUi implements vscode.Disposable {
       vscode.commands.registerCommand('redline.openLatestRound', () => nav.openLatestRound()),
       vscode.commands.registerCommand('redline.nextNote', () => nav.stepNote(1)),
       vscode.commands.registerCommand('redline.previousNote', () => nav.stepNote(-1)),
-      vscode.commands.registerCommand('redline.reviewWorktree', () => this.reviewWorktree())
+      vscode.commands.registerCommand('redline.compare', () => this.compare())
     );
   }
 }

@@ -47,8 +47,9 @@
         "icon": "$(clear-all)"
       },
       {
-        "command": "redline.reviewWorktree",
-        "title": "Redline: Review working tree"
+        "command": "redline.compare",
+        "title": "Redline: Compare…",
+        "icon": "$(git-compare)"
       },
       {
         "command": "redline.reply",
@@ -121,7 +122,7 @@
     "viewsWelcome": [
       {
         "view": "redline.rounds",
-        "contents": "No review rounds yet. Ask Claude Code to /redline:redline-tour the changes, or review the working tree here and run /redline:redline-connect in Claude Code to pick up your comments.\n[Review working tree](command:redline.reviewWorktree)"
+        "contents": "No review rounds yet. Ask Claude Code to /redline:redline-tour the changes, or pick two refs to compare here and run /redline:redline-connect in Claude Code to pick up your comments.\n[Compare…](command:redline.compare)"
       }
     ],
     "keybindings": [
@@ -149,6 +150,11 @@
         "command": "redline.submitReview",
         "key": "ctrl+alt+r s",
         "mac": "cmd+alt+r s"
+      },
+      {
+        "command": "redline.compare",
+        "key": "ctrl+alt+r c",
+        "mac": "cmd+alt+r c"
       },
       {
         "command": "redline.sendThread",
@@ -264,8 +270,8 @@
           "when": "view == redline.rounds"
         },
         {
-          "command": "redline.reviewWorktree",
-          "group": "1_actions@1",
+          "command": "redline.compare",
+          "group": "navigation@0",
           "when": "view == redline.rounds"
         },
         {

@@ -31,7 +31,7 @@ The plugin does nothing without the extension. Rerun the script to update it. A 
 | ---------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `/redline:redline-tour`      | Opens Claude's diff as a round with a numbered walkthrough: Claude picks the parts a reader must understand and notes each one, in reading order. Then listens for your submit. |
 | `/redline:redline-annotate`  | Opens the diff with only the notes Claude already wrote for you in chat, or none. Then listens.                                                                      |
-| `/redline:redline-connect`   | Attaches the session to submits from VS Code. Run it after **Review working tree** in VS Code, or when a submit message says no agent is connected.                  |
+| `/redline:redline-connect`   | Attaches the session to submits from VS Code. Run it after **Compare…** in VS Code, or when a submit message says no agent is connected.                  |
 
 The round skills take an optional source: `staged`, `unstaged`, `all`, a ref or range such as `main` or `a..b`, a `.patch` file, or `--files <left> <right>`.
 

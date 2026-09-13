@@ -5,6 +5,10 @@ export interface FilePair {
   right: string;
 }
 
+/** `to` values that name an uncommitted side instead of a revision: `worktree` is the files on disk, untracked included; `index` is what is staged. */
+export const WORKTREE_SIDE = 'worktree';
+export const INDEX_SIDE = 'index';
+
 export type Source =
   | { kind: 'worktree'; scope: WorktreeScope }
   | { kind: 'range'; from: string; to: string }
@@ -75,15 +79,16 @@ export interface Note {
   hunks?: NoteHunk[];
 }
 
-export interface RequestReview {
-  source: Source;
-  title?: string;
-  notes?: Note[];
-}
+/** `source` opens a round, or refreshes the one with the same label; `roundId` refreshes that round from its stored source. */
+export type RequestReview = { title?: string; notes?: Note[] } & (
+  | { source: Source; roundId?: undefined }
+  | { roundId: string; source?: undefined }
+);
 
 export interface RoundSummary {
   id: string;
   title?: string;
+  source: Source;
   sourceLabel: string;
   fileCount: number;
   openThreads: number;

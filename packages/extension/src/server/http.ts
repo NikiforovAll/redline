@@ -1,7 +1,7 @@
 import { randomBytes } from 'node:crypto';
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
 import type { AddressInfo } from 'node:net';
-import type { Anchor, RequestReview, RequestReviewResult, ReviewEvent } from '@redline/protocol';
+import type { Anchor, RequestReview, RequestReviewResult, ReviewEvent, Source } from '@redline/protocol';
 import { SourceUnavailableError } from '../diff/index.ts';
 import { memoryPersistence, ReviewStore, type RefreshOutcome, type StoredRound } from '../review/store.ts';
 import { roundMessage } from '../review/view-model.ts';
@@ -43,7 +43,7 @@ export interface RunningServer {
   close: () => Promise<void>;
 }
 
-function isSource(value: unknown): boolean {
+function isSource(value: unknown): value is Source {
   if (!value || typeof value !== 'object') return false;
   const kind = (value as { kind?: unknown }).kind;
   return kind === 'worktree' || kind === 'range' || kind === 'patch' || kind === 'files';
@@ -188,15 +188,22 @@ export async function startServer(options: StartServerOptions): Promise<RunningS
     }
     if (req.method === 'POST' && url === '/rounds') {
       const body = (await readJsonBody(req)) as RequestReview;
-      if (!isSource(body?.source)) {
-        send(res, 400, { error: 'redline: request_review needs a source of kind worktree, range, patch or files' });
+      const byId = typeof body?.roundId === 'string';
+      const existing = byId ? store.round(body.roundId) : isSource(body?.source) ? store.findOpenRound(body.source) : undefined;
+      if (byId && !existing) {
+        send(res, 404, { error: `redline: unknown round ${body.roundId}` });
         return;
       }
-      const existing = store.findOpenRound(body.source);
       if (existing && options.hooks?.onRoundRefresh) {
         const outcome = await options.hooks.onRoundRefresh(existing, body);
         const result: RequestReviewResult = { ...store.summary(existing.id), outcome, message: roundMessage(existing, outcome) };
         send(res, 200, result);
+        return;
+      }
+      if (!isSource(body?.source)) {
+        send(res, 400, {
+          error: 'redline: request_review needs a roundId, or a source of kind worktree, range, patch or files'
+        });
         return;
       }
       const round = store.createRound({

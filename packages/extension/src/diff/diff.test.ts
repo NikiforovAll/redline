@@ -5,7 +5,7 @@ import * as path from 'node:path';
 import { after, before, describe, it } from 'node:test';
 import { createFixture, fixtureContents, type Fixture } from './fixture.ts';
 import { parsePatch, sideFromHunks } from './parse.ts';
-import { buildSnapshot, git, type SnapshotFile } from './sources.ts';
+import { buildSnapshot, git, splitRange, type SnapshotFile } from './sources.ts';
 import { URI } from 'vscode-uri';
 import { parseQuery, parseUri, toUri } from './uri.ts';
 
@@ -124,6 +124,38 @@ describe('range', () => {
     assert.equal(gone.status, 'deleted');
     assert.equal(gone.left, 'gone body\n');
     assert.equal(gone.right, null);
+  });
+});
+
+describe('range against uncommitted work', () => {
+  it('compares a ref with the files on disk, untracked included', async () => {
+    const snapshot = await buildSnapshot({ kind: 'range', from: 'HEAD~1', to: 'worktree' }, fixture.root);
+    const files = byPath(snapshot.files);
+
+    assert.deepEqual([...files.keys()].sort(), ['a.txt', 'added.txt', 'gone.txt', 'keep.txt', 'renamed.txt', 'untracked.txt']);
+    const a = files.get('a.txt')!;
+    assert.equal(a.left, fixtureContents.A_V1);
+    assert.equal(a.right, fixtureContents.A_V3);
+    assert.equal(files.get('untracked.txt')!.status, 'added');
+  });
+
+  it('compares a ref with the index and skips untracked and unstaged work', async () => {
+    const snapshot = await buildSnapshot({ kind: 'range', from: 'HEAD~1', to: 'index' }, fixture.root);
+    const files = byPath(snapshot.files);
+
+    assert.deepEqual([...files.keys()].sort(), ['a.txt', 'added.txt', 'gone.txt', 'keep.txt', 'renamed.txt']);
+    const a = files.get('a.txt')!;
+    assert.equal(a.left, fixtureContents.A_V1);
+    assert.equal(a.right, fixtureContents.A_V2);
+    assert.equal(files.get('keep.txt')!.right, 'keep one\nkeep two changed\n');
+  });
+
+  it('normalizes every spelling of a range to one spec', () => {
+    assert.equal(splitRange('main', 'HEAD').spec, 'main..HEAD');
+    assert.equal(splitRange('main...', 'feature').spec, 'main...feature');
+    assert.equal(splitRange('main...feature', '').spec, 'main...feature');
+    assert.deepEqual(splitRange('main..', 'feature'), { spec: 'main..feature', threeDot: false, leftRev: 'main', rightRev: 'feature' });
+    assert.deepEqual(splitRange('main', 'worktree'), { spec: 'main..worktree', threeDot: false, leftRev: 'main', rightRev: 'worktree' });
   });
 });
 
