@@ -8,7 +8,7 @@ The [docs site](https://nikiforovall.blog/redline/) has a [guide](https://nikifo
 
 ## Install
 
-Search for **Redline** in the VS Code Extensions view, or:
+Search for **Claude Code Redline** in the VS Code Extensions view, or:
 
 ```sh
 code --install-extension nikiforovall.redline-extension

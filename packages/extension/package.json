@@ -1,6 +1,6 @@
 {
   "name": "redline-extension",
-  "displayName": "Redline",
+  "displayName": "Claude Code Redline",
   "description": "Review agent diffs in VS Code and send comments back to Claude Code.",
   "version": "0.1.0",
   "publisher": "nikiforovall",

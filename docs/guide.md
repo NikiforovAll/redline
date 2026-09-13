@@ -6,7 +6,7 @@ Both halves are needed: the VS Code extension renders rounds, the Claude Code pl
 
 ### Extension
 
-Search for **Redline** in the Extensions view and install it, or:
+Search for **Claude Code Redline** in the Extensions view and install it, or:
 
 ```sh
 code --install-extension nikiforovall.redline-extension
