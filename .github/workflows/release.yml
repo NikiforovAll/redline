@@ -50,13 +50,10 @@ jobs:
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
-      - uses: azure/login@v2
-        with:
-          client-id: ${{ vars.AZURE_CLIENT_ID }}
-          tenant-id: ${{ vars.AZURE_TENANT_ID }}
-          allow-no-subscriptions: true
       - name: Publish the extension to the VS Code marketplace
-        run: npx vsce publish --packagePath dist/*.vsix --skip-duplicate --azure-credential
+        run: npx vsce publish --packagePath dist/*.vsix --skip-duplicate
+        env:
+          VSCE_PAT: ${{ secrets.VSCE_PAT }}
 
       - name: GitHub release with the vsix
         run: |
