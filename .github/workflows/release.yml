@@ -40,13 +40,18 @@ jobs:
         working-directory: packages/extension
 
       - name: Publish the server to npm
+        # Trusted publishing needs npm 11.5.1+ and a publish from the package directory;
+        # `-w` exchanged the OIDC token for the root package name.
         run: |
+          npm install -g npm@latest
+          npm -v
           v="${{ steps.version.outputs.version }}"
           if npm view "@nikiforovall/redline-mcp@$v" version >/dev/null 2>&1; then
             echo "@nikiforovall/redline-mcp@$v is already on the registry"
           else
-            npm publish -w @nikiforovall/redline-mcp --provenance --access public
+            npm publish --provenance --access public
           fi
+        working-directory: packages/mcp
 
       - name: Publish the extension to the VS Code marketplace
         run: npx vsce publish --packagePath dist/*.vsix --skip-duplicate
