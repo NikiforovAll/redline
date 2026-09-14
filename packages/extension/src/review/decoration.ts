@@ -11,6 +11,7 @@ export interface ThreadDecorationInput {
   file: string;
   line: number;
   side: Anchor['side'];
+  detached?: boolean;
 }
 
 export interface ThreadDecoration {
@@ -44,9 +45,10 @@ function threadStage(input: ThreadDecorationInput): ThreadStage {
 export function threadDecoration(input: ThreadDecorationInput): ThreadDecoration {
   const stage = threadStage(input);
   const name = input.file.split('/').pop() ?? input.file;
+  const place = input.detached ? `${sideLabel(input.side)}, detached` : sideLabel(input.side);
   return {
     stage,
-    label: `${BADGE[stage]} · ${name}:${input.line} (${sideLabel(input.side)})`,
+    label: `${BADGE[stage]} · ${name}:${input.line} (${place})`,
     contextValue: `redline.${stage}`
   };
 }

@@ -1,13 +1,16 @@
-import type { RoundOutcome, Thread } from '@redline/protocol';
+import type { FileStatus, RoundOutcome, Thread } from '@redline/protocol';
+import { threadDecoration, type ThreadDecoration } from './decoration.ts';
 import type { TourCursor } from './navigator.ts';
-import { hasHumanComment, isDraft, threadLine, type StoredRound } from './store.ts';
+import { hasHumanComment, isDraft, threadLine, type StoredRound, type StoreFile } from './store.ts';
 import { allNotes, stripTourPrefix } from './tour.ts';
 
 export type RoundNode =
   | { kind: 'round'; roundId: string; round: StoredRound; active: boolean }
   | { kind: 'info'; roundId: string; label: string; icon: string }
+  | { kind: 'files'; roundId: string; round: StoredRound }
+  | { kind: 'file'; roundId: string; file: StoreFile; notes: number }
   | { kind: 'notes'; roundId: string; round: StoredRound }
-  | { kind: 'note'; roundId: string; thread: Thread; index: number; line: number; current: boolean; answered: boolean };
+  | { kind: 'note'; roundId: string; round: StoredRound; thread: Thread; index: number; line: number; current: boolean; answered: boolean };
 
 export function draftCount(round: StoredRound): number {
   return round.threads.filter(isDraft).length;
@@ -78,8 +81,39 @@ export function roundChildren(round: StoredRound, cursor: TourCursor | undefined
     label: dateLabel(round),
     icon: round.submittedAt ? 'check' : round.refreshCount > 0 ? 'sync' : 'clock'
   });
+  if (round.files.length > 0) info.push({ kind: 'files', roundId: round.id, round });
   if (round.threads.length > 0) info.push({ kind: 'notes', roundId: round.id, round });
   return info;
+}
+
+/** The round's scope in diff order, each file with the count of notes anchored to it. */
+export function fileNodes(round: StoredRound): Extract<RoundNode, { kind: 'file' }>[] {
+  return round.files.map((file) => ({
+    kind: 'file',
+    roundId: round.id,
+    file,
+    notes: round.threads.filter((thread) => thread.anchor.file === file.path).length
+  }));
+}
+
+export function fileDescription(node: Extract<RoundNode, { kind: 'file' }>): string | undefined {
+  return node.notes > 0 ? plural(node.notes, 'note') : undefined;
+}
+
+/** Same letters and theme colors as the built-in git decorations, so the row reads like the Source Control view. */
+export function fileBadge(status: FileStatus): { letter: string; color: string; tooltip: string } {
+  switch (status) {
+    case 'added':
+      return { letter: 'A', color: 'gitDecoration.addedResourceForeground', tooltip: 'Added' };
+    case 'deleted':
+      return { letter: 'D', color: 'gitDecoration.deletedResourceForeground', tooltip: 'Deleted' };
+    case 'renamed':
+      return { letter: 'R', color: 'gitDecoration.renamedResourceForeground', tooltip: 'Renamed' };
+    case 'binary':
+      return { letter: 'B', color: 'gitDecoration.modifiedResourceForeground', tooltip: 'Binary' };
+    case 'modified':
+      return { letter: 'M', color: 'gitDecoration.modifiedResourceForeground', tooltip: 'Modified' };
+  }
 }
 
 /** Every thread in tour order, numbered from 1, with the tour cursor marked. */
@@ -87,6 +121,7 @@ export function noteNodes(round: StoredRound, cursor: TourCursor | undefined): E
   return allNotes(round).map((thread, index) => ({
     kind: 'note',
     roundId: round.id,
+    round,
     thread,
     index: index + 1,
     line: threadLine(round, thread),
@@ -106,6 +141,27 @@ export function noteLabel(thread: Thread): string {
   const body = thread.comments[0]?.body ?? '';
   const first = body.split(/\r?\n/, 1)[0] ?? '';
   return stripTourPrefix(first).replace(/[*_`]/g, '').trim() || thread.id;
+}
+
+/** Stage, label, and context value of a thread; the tree and the comment widget share it so one `when` clause fits both surfaces. */
+export function decorationOf(round: StoredRound, thread: Thread): ThreadDecoration {
+  return threadDecoration({
+    kind: thread.kind,
+    resolved: thread.resolved,
+    sent: thread.sent && round.submittedAt === undefined,
+    submitted: round.submittedAt !== undefined,
+    hasHumanComment: hasHumanComment(thread),
+    file: thread.anchor.file,
+    line: threadLine(round, thread),
+    side: thread.anchor.side,
+    detached: thread.detached
+  });
+}
+
+/** A multi-select tree passes the clicked node and the selection; the selection counts only when it contains the clicked node. */
+export function noteIdsFrom(clicked: unknown, selected: unknown): string[] {
+  const nodes = Array.isArray(selected) && selected.includes(clicked) ? (selected as RoundNode[]) : [clicked as RoundNode | undefined];
+  return nodes.flatMap((node) => (node?.kind === 'note' ? [node.thread.id] : []));
 }
 
 export function noteDescription(node: Extract<RoundNode, { kind: 'note' }>): string {

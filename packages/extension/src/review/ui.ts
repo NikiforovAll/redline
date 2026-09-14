@@ -4,11 +4,11 @@ import type { Anchor, Author, RequestReview, Thread } from '@redline/protocol';
 import { buildSnapshot, REDLINE_SCHEME } from '../diff/index.ts';
 import { attachSnapshot, refreshSnapshot } from '../server/snapshot.ts';
 import { pickComparison } from './compare.ts';
-import { AGENT_LABEL, COMMENT_OPTIONS, sideLabel, threadDecoration } from './decoration.ts';
+import { AGENT_LABEL, COMMENT_OPTIONS, sideLabel } from './decoration.ts';
 import { absolutizeLinks } from './markdown.ts';
 import { RoundNavigator } from './navigator.ts';
 import { hasHumanComment, sourceLabel, threadLine, type RefreshOutcome, type ReviewStore, type StoredRound } from './store.ts';
-import { plural, roundMessage } from './view-model.ts';
+import { decorationOf, noteIdsFrom, plural, roundMessage } from './view-model.ts';
 
 /** Each emitter returns whether at least one agent stream received the event. */
 export interface UiEvent {
@@ -207,12 +207,8 @@ export class ReviewUi implements vscode.Disposable {
 
   /** Recreates the widgets of one round; for a round no longer in the store it only removes them. */
   rebuildRound(roundId: string): void {
-    for (const [id, entry] of this.byThreadId) {
-      if (this.roundIdByThreadId.get(id) !== roundId) continue;
-      entry.dispose();
-      this.byThreadId.delete(id);
-      this.idByThread.delete(entry);
-      this.roundIdByThreadId.delete(id);
+    for (const id of [...this.byThreadId.keys()]) {
+      if (this.roundIdByThreadId.get(id) === roundId) this.disposeWidget(id);
     }
     const round = this.store.round(roundId);
     if (!round) return;
@@ -297,25 +293,55 @@ export class ReviewUi implements vscode.Disposable {
       this.refreshThread(comment.threadId);
       return;
     }
-    const widget = this.byThreadId.get(comment.threadId);
+    this.disposeWidget(comment.threadId);
+  }
+
+  private disposeWidget(threadId: string): void {
+    const widget = this.byThreadId.get(threadId);
     if (!widget) return;
     widget.dispose();
-    this.byThreadId.delete(comment.threadId);
+    this.byThreadId.delete(threadId);
     this.idByThread.delete(widget);
-    this.roundIdByThreadId.delete(comment.threadId);
+    this.roundIdByThreadId.delete(threadId);
+  }
+
+  /** Several ids join with a blank line so a multi-select pastes as one document. */
+  private async copyThreads(threadIds: string[], as: 'id' | 'markdown'): Promise<void> {
+    const ids = threadIds.filter((id) => this.store.thread(id));
+    if (ids.length === 0) return;
+    const text = as === 'id' ? ids.join('\n') : ids.map((id) => this.store.threadMarkdown(id)).join('\n');
+    await vscode.env.clipboard.writeText(text);
+    const what = ids.length === 1 ? ids[0] : plural(ids.length, 'note');
+    void vscode.window.showInformationMessage(`Redline: copied ${what}${as === 'markdown' ? ' as Markdown' : ''}.`);
+  }
+
+  /** One confirmation for the whole batch, since a wrong pick loses the agent's side of every thread too. */
+  private async deleteThreads(threadIds: string[]): Promise<void> {
+    const threads = threadIds.flatMap((id) => this.store.thread(id) ?? []);
+    if (threads.length === 0) return;
+    const comments = threads.reduce((sum, thread) => sum + thread.comments.length, 0);
+    const what = threads.length === 1 ? threads[0].id : plural(threads.length, 'note');
+    const pick = await vscode.window.showWarningMessage(
+      `Redline: delete ${what} with ${plural(comments, 'comment')}?`,
+      { modal: true },
+      'Delete'
+    );
+    if (pick !== 'Delete') return;
+    for (const thread of this.store.removeThreads(threads.map((thread) => thread.id))) this.disposeWidget(thread.id);
+  }
+
+  /** Resolving changes only the label and state, so widgets get redecorated instead of rebuilt. */
+  private setResolved(threadIds: string[], resolved: boolean): void {
+    const ids = threadIds.filter((id) => this.store.thread(id));
+    for (const stored of this.store.setResolvedAll(ids, resolved)) {
+      const widget = this.byThreadId.get(stored.id);
+      const round = this.store.round(stored.roundId);
+      if (widget && round) this.decorate(round, stored, widget);
+    }
   }
 
   private decorate(round: StoredRound, stored: Thread, thread: vscode.CommentThread): void {
-    const decoration = threadDecoration({
-      kind: stored.kind,
-      resolved: stored.resolved,
-      sent: stored.sent && round.submittedAt === undefined,
-      submitted: round.submittedAt !== undefined,
-      hasHumanComment: hasHumanComment(stored),
-      file: stored.anchor.file,
-      line: threadLine(round, stored),
-      side: stored.anchor.side
-    });
+    const decoration = decorationOf(round, stored);
     thread.label = decoration.label;
     thread.contextValue = `${decoration.contextValue}.${stored.id}`;
     thread.state = stored.resolved
@@ -370,9 +396,9 @@ export class ReviewUi implements vscode.Disposable {
     for (const stored of round.threads) this.refreshThread(stored.id);
   }
 
-  /** A detached thread has no line to sit on, so it gets no widget; the Redline panel lists it. */
+  /** A thread whose file left the round has no document to sit in; the panel still lists it. A thread whose line left keeps a widget on the clamped line. */
   private createThread(round: StoredRound, stored: Thread): void {
-    if (stored.detached) return;
+    if (!round.files.some((file) => file.path === stored.anchor.file)) return;
     const line = threadLine(round, stored) - 1;
     const uri = this.navigator.uriFor(round.id, stored.anchor.side, stored.anchor.file);
     const thread = this.controller.createCommentThread(
@@ -508,7 +534,11 @@ export class ReviewUi implements vscode.Disposable {
   /** The inline button hands over a CommentReply with the unsaved text; store it before sending. */
   private sendThread(target: vscode.CommentThread | vscode.CommentReply | undefined): void {
     const id = this.isReply(target) ? this.reply(target) : this.focusedThreadId(target, hasHumanComment);
-    const stored = id ? this.store.thread(id) : undefined;
+    if (id) this.sendThreadById(id);
+  }
+
+  private sendThreadById(id: string): void {
+    const stored = this.store.thread(id);
     if (!stored) return;
     if (!hasHumanComment(stored)) {
       void vscode.window.showInformationMessage('Redline: reply to the note first, then send it.');
@@ -529,13 +559,9 @@ export class ReviewUi implements vscode.Disposable {
     );
   }
 
-  private toggleResolved(thread: vscode.CommentThread | undefined): void {
+  private resolveFocused(thread: vscode.CommentThread | undefined, resolved: boolean): void {
     const id = this.focusedThreadId(thread);
-    if (!id) return;
-    const stored = this.store.thread(id);
-    if (!stored) return;
-    this.store.setResolved(id, !stored.resolved);
-    this.refreshThread(id);
+    if (id) this.setResolved([id], resolved);
   }
 
   /** The reviewer's own round: no title, no notes. Same create-or-refresh path as `POST /rounds`, so a later `request_review` on the pair lands in this round. */
@@ -567,6 +593,16 @@ export class ReviewUi implements vscode.Disposable {
 
   register(context: vscode.ExtensionContext): void {
     const nav = this.navigator;
+    const noteCommand = (name: string, act: (threadIds: string[]) => void | Promise<void>): vscode.Disposable =>
+      vscode.commands.registerCommand(name, (clicked: unknown, selected: unknown) => {
+        const ids = noteIdsFrom(clicked, selected);
+        return ids.length > 0 ? act(ids) : undefined;
+      });
+    const roundNotesCommand = (name: string, keep: (thread: Thread) => boolean): vscode.Disposable =>
+      vscode.commands.registerCommand(name, (node: unknown) => {
+        const round = this.store.round((node as { roundId?: string } | undefined)?.roundId ?? '');
+        return round ? this.deleteThreads(round.threads.filter(keep).map((thread) => thread.id)) : undefined;
+      });
     context.subscriptions.push(
       this,
       vscode.commands.registerCommand('redline.reply', (reply: vscode.CommentReply) =>
@@ -579,11 +615,19 @@ export class ReviewUi implements vscode.Disposable {
         this.sendThread(target)
       ),
       vscode.commands.registerCommand('redline.resolveThread', (thread?: vscode.CommentThread) =>
-        this.toggleResolved(thread)
+        this.resolveFocused(thread, true)
       ),
       vscode.commands.registerCommand('redline.reopenThread', (thread?: vscode.CommentThread) =>
-        this.toggleResolved(thread)
+        this.resolveFocused(thread, false)
       ),
+      noteCommand('redline.copyNoteId', (ids) => this.copyThreads(ids, 'id')),
+      noteCommand('redline.copyNoteMarkdown', (ids) => this.copyThreads(ids, 'markdown')),
+      noteCommand('redline.deleteNote', (ids) => this.deleteThreads(ids)),
+      noteCommand('redline.resolveNote', (ids) => this.setResolved(ids, true)),
+      noteCommand('redline.reopenNote', (ids) => this.setResolved(ids, false)),
+      noteCommand('redline.sendNote', (ids) => ids.forEach((id) => this.sendThreadById(id))),
+      roundNotesCommand('redline.deleteResolvedNotes', (thread) => thread.resolved),
+      roundNotesCommand('redline.deleteAllNotes', () => true),
       vscode.commands.registerCommand('redline.editComment', (comment: unknown) => this.editComment(comment)),
       vscode.commands.registerCommand('redline.saveComment', (comment: unknown) => this.saveComment(comment)),
       vscode.commands.registerCommand('redline.cancelEditComment', (comment: unknown) => {

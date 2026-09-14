@@ -38,6 +38,8 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     copy: (roundId) => ui.copyRoundId(roundId)
   });
 
+  void ui.navigator.closeStaleMultiDiffTabs();
+
   const onboarding = new Onboarding(context);
   onboarding.register();
   void onboarding.start();

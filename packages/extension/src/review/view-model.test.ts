@@ -1,12 +1,17 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import type { Thread } from '@redline/protocol';
+import type { FileStatus, Thread } from '@redline/protocol';
 import type { StoredRound } from './store.ts';
 import {
   dateLabel,
   draftCount,
+  decorationOf,
+  fileBadge,
+  fileDescription,
+  fileNodes,
   formatDate,
   noteDescription,
+  noteIdsFrom,
   noteLabel,
   noteNodes,
   notesDescription,
@@ -41,8 +46,8 @@ function round(id: string, threads: Thread[], submittedAt?: string): StoredRound
     refreshCount: 0,
     notes: [],
     files: [
-      { path: 'a.ts', status: 'modified', left: '', right: '', hunks: [{ oldStart: 1, oldLines: 1, newStart: 1, newLines: 3, lines: [] }] },
-      { path: 'b.ts', status: 'added', left: null, right: '', hunks: [{ oldStart: 0, oldLines: 0, newStart: 1, newLines: 2, lines: [] }] }
+      { path: 'a.ts', status: 'modified', left: 'a', right: 'a\nb\nc', hunks: [{ oldStart: 1, oldLines: 1, newStart: 1, newLines: 3, lines: [] }] },
+      { path: 'b.ts', status: 'added', left: null, right: 'a\nb', hunks: [{ oldStart: 0, oldLines: 0, newStart: 1, newLines: 2, lines: [] }] }
     ],
     threads
   };
@@ -70,13 +75,20 @@ describe('roundChildren', () => {
   it('shows the date, then a notes group with every thread in reading order and the current one marked', () => {
     const cursor = { roundId: 'r1', threadId: 't1' };
     const nodes = roundChildren(r1, cursor);
-    assert.deepEqual(nodes.map((node) => node.kind), ['info', 'notes']);
+    assert.deepEqual(nodes.map((node) => node.kind), ['info', 'files', 'notes']);
+    assert.deepEqual(
+      fileNodes(r1).map((node) => [node.file.path, fileDescription(node)]),
+      [['a.ts', '1 note'], ['b.ts', '2 notes']]
+    );
+    assert.equal(fileDescription({ ...fileNodes(r1)[0], notes: 0 }), undefined);
+    assert.deepEqual(['added', 'modified', 'deleted', 'renamed', 'binary'].map((status) => fileBadge(status as FileStatus).letter), ['A', 'M', 'D', 'R', 'B']);
     assert.equal(notesDescription(r1), '3 notes');
     assert.deepEqual(
       noteNodes(r1, cursor).map((node) => [node.thread.id, node.index, node.current, node.answered]),
       [['t1', 1, true, false], ['t2', 2, false, false], ['h1', 3, false, true]]
     );
-    assert.deepEqual(roundChildren(round('r3', []), undefined).map((node) => node.kind), ['info']);
+    assert.deepEqual(roundChildren(round('r3', []), undefined).map((node) => node.kind), ['info', 'files']);
+    assert.deepEqual(roundChildren({ ...round('r3', []), files: [] }, undefined).map((node) => node.kind), ['info']);
   });
 
   it('keeps resolved threads in place so numbering matches the tour', () => {
@@ -88,6 +100,11 @@ describe('roundChildren', () => {
       [['t1', 1, true], ['t2', 2, false]]
     );
     assert.equal(noteDescription(notes[0]), 'a.ts:2 · resolved');
+    assert.equal(decorationOf(notes[0].round, notes[0].thread).contextValue, 'redline.resolved');
+    assert.equal(decorationOf(notes[1].round, notes[1].thread).contextValue, 'redline.sent');
+    assert.deepEqual(noteIdsFrom(notes[0], notes), ['t1', 't2']);
+    assert.deepEqual(noteIdsFrom(notes[0], [notes[1]]), ['t1']);
+    assert.deepEqual(noteIdsFrom(undefined, undefined), []);
   });
 
   it('describes the round state', () => {
@@ -102,7 +119,7 @@ describe('roundChildren', () => {
     assert.equal(roundDescription(titled), '2 files · 1 open · 1 detached · open');
     const nodes = roundChildren(titled, undefined);
     assert.deepEqual(nodes.slice(0, 2).map((node) => node.kind === 'info' && node.label), ['Fix store pruning', `Opened ${formatDate(titled.createdAt)}`]);
-    assert.equal(noteDescription(noteNodes(titled, undefined)[0]), 'a.ts:1 · detached');
+    assert.equal(noteDescription(noteNodes(titled, undefined)[0]), 'a.ts:2 · detached');
   });
 
   it('reports refreshes in the date row and the refresh message', () => {

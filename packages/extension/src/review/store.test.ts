@@ -551,6 +551,43 @@ describe('editComment and deleteComment', () => {
     assert.equal(store.round(roundId)!.threads.some((entry) => entry.id === thread.id), false);
   });
 
+  it('threadMarkdown renders one thread under its file heading', () => {
+    const { store, roundId } = fixture();
+    const note = store.round(roundId)!.threads.find((thread) => thread.kind === 'note')!;
+    store.addComment(note.id, 'human', 'ok');
+    const markdown = store.threadMarkdown(note.id);
+    assert.match(markdown, new RegExp(`^## ${note.anchor.file.replace(/[./]/g, '\\$&')}\\n\\n### :\\d+ ${note.anchor.side}  \\[${note.id}\\]`));
+    assert.match(markdown, /```diff\n[\s\S]*```\n/);
+    assert.match(markdown, /\*\*claude \(note\):\*\* /);
+    assert.match(markdown, /\*\*human:\*\* ok\n$/);
+    assert.throws(() => store.threadMarkdown('nope'), /unknown thread/);
+  });
+
+  it('removeThreads drops notes with comments from both sides in one write', () => {
+    const { store, roundId } = fixture();
+    const note = store.round(roundId)!.threads.find((thread) => thread.kind === 'note')!;
+    store.addComment(note.id, 'human', 'ok');
+    const other = store.addThread(roundId, { file: 'src/http/middleware.ts', side: 'right', newLine: 76 }, 'human', 'bye');
+    let saves = 0;
+    store.onChange(() => (saves += 1));
+    const removed = store.removeThreads([note.id, other.id]);
+    assert.deepEqual(removed.map((thread) => thread.id), [note.id, other.id]);
+    assert.equal(saves, 1);
+    assert.equal(store.thread(note.id), undefined);
+    assert.equal(store.round(roundId)!.threads.some((entry) => entry.id === note.id || entry.id === other.id), false);
+    assert.throws(() => store.removeThreads([note.id]), /unknown thread/);
+  });
+
+  it('setResolvedAll flips several threads in one write', () => {
+    const { store, roundId } = fixture();
+    const ids = store.round(roundId)!.threads.map((thread) => thread.id);
+    let saves = 0;
+    store.onChange(() => (saves += 1));
+    const threads = store.setResolvedAll(ids, true);
+    assert.equal(saves, 1);
+    assert.ok(threads.every((thread) => thread.resolved));
+  });
+
   it('delete of the only human reply on a note keeps the note', () => {
     const { store, roundId } = fixture();
     const note = store.round(roundId)!.threads.find((thread) => thread.kind === 'note')!;

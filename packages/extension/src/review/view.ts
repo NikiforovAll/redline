@@ -2,11 +2,16 @@ import * as vscode from 'vscode';
 import type { RoundNavigator } from './navigator.ts';
 import type { ReviewStore } from './store.ts';
 import {
+  decorationOf,
+  fileBadge,
+  fileDescription,
+  fileNodes,
   formatDate,
   noteDescription,
   noteLabel,
   noteNodes,
   notesDescription,
+  plural,
   roundChildren,
   roundDescription,
   roundLabel,
@@ -28,11 +33,20 @@ export class RoundView implements vscode.TreeDataProvider<RoundNode>, vscode.Dis
     private readonly store: ReviewStore,
     private readonly navigator: RoundNavigator
   ) {
-    this.view = vscode.window.createTreeView(ROUND_VIEW_ID, { treeDataProvider: this, showCollapseAll: false });
+    this.view = vscode.window.createTreeView(ROUND_VIEW_ID, { treeDataProvider: this, showCollapseAll: false, canSelectMany: true });
     const unsubscribe = store.onChange(() => this.refresh());
     this.disposables.push(
       this.view,
       this.changed,
+      vscode.window.registerFileDecorationProvider({
+        provideFileDecoration: (uri) => {
+          const parsed = this.navigator.parse(uri);
+          const file = parsed && this.store.round(parsed.roundId)?.files.find((entry) => entry.path === parsed.path);
+          if (!file) return undefined;
+          const badge = fileBadge(file.status);
+          return new vscode.FileDecoration(badge.letter, badge.tooltip, new vscode.ThemeColor(badge.color));
+        }
+      }),
       { dispose: unsubscribe },
       navigator.onDidChangeCursor(() => this.refresh()),
       navigator.onDidChangeCaret((caret) => {
@@ -59,6 +73,7 @@ export class RoundView implements vscode.TreeDataProvider<RoundNode>, vscode.Dis
   getChildren(node?: RoundNode): RoundNode[] {
     if (!node) return rootNodes(this.store.rounds(), this.activeRoundId);
     if (node.kind === 'round') return roundChildren(node.round, this.navigator.tourCursor);
+    if (node.kind === 'files') return fileNodes(node.round);
     if (node.kind === 'notes') return noteNodes(node.round, this.navigator.tourCursor);
     return [];
   }
@@ -86,6 +101,25 @@ export class RoundView implements vscode.TreeDataProvider<RoundNode>, vscode.Dis
         item.contextValue = 'redline.info';
         return item;
       }
+      case 'files': {
+        const item = new vscode.TreeItem('Files', vscode.TreeItemCollapsibleState.Collapsed);
+        item.id = `files:${node.roundId}`;
+        item.description = plural(node.round.files.length, 'file');
+        item.iconPath = new vscode.ThemeIcon('files');
+        item.contextValue = 'redline.files';
+        return item;
+      }
+      case 'file': {
+        const item = new vscode.TreeItem(node.file.path);
+        item.id = `file:${node.roundId}:${node.file.path}`;
+        item.description = fileDescription(node);
+        item.resourceUri = this.navigator.uriFor(node.roundId, 'right', node.file.path);
+        item.iconPath = vscode.ThemeIcon.File;
+        item.tooltip = `${node.file.path} · ${fileBadge(node.file.status).tooltip.toLowerCase()}`;
+        item.contextValue = 'redline.file';
+        item.command = { command: 'redline.openFileDiff', title: 'Open file diff', arguments: [node.roundId, node.file.path] };
+        return item;
+      }
       case 'notes': {
         const item = new vscode.TreeItem('Notes', vscode.TreeItemCollapsibleState.Expanded);
         item.id = `notes:${node.roundId}`;
@@ -111,7 +145,7 @@ export class RoundView implements vscode.TreeDataProvider<RoundNode>, vscode.Dis
           node.current ? new vscode.ThemeColor('list.highlightForeground') : undefined
         );
         item.tooltip = new vscode.MarkdownString(node.thread.comments[0]?.body ?? '');
-        item.contextValue = 'redline.note';
+        item.contextValue = decorationOf(node.round, node.thread).contextValue;
         item.command = { command: 'redline.revealNote', title: 'Go to note', arguments: [node.roundId, node.thread.id] };
         return item;
       }
@@ -139,6 +173,7 @@ export class RoundView implements vscode.TreeDataProvider<RoundNode>, vscode.Dis
       vscode.commands.registerCommand('redline.revealNote', (roundId: string, threadId: string) =>
         nav.revealNote(roundId, threadId)
       ),
+      vscode.commands.registerCommand('redline.openFileDiff', (roundId: string, filePath: string) => nav.openFile(roundId, filePath)),
       vscode.commands.registerCommand('redline.submitRound', (arg: unknown) => {
         const id = roundIdFrom(arg) ?? nav.currentRound()?.id;
         return id ? actions.submit(id) : undefined;
@@ -155,7 +190,10 @@ export class RoundView implements vscode.TreeDataProvider<RoundNode>, vscode.Dis
         const id = roundIdFrom(arg) ?? nav.currentRound()?.id ?? (await nav.pickRoundId('Copy the id of which Redline review round?'));
         if (id) await actions.copy(id);
       }),
-      vscode.commands.registerCommand('redline.reloadView', () => this.refresh())
+      vscode.commands.registerCommand('redline.reloadView', () => this.refresh()),
+      vscode.commands.registerCommand('redline.toggleView', () =>
+        vscode.commands.executeCommand(this.view.visible ? 'workbench.action.closeAuxiliaryBar' : `workbench.view.extension.redline`)
+      )
     );
   }
 }

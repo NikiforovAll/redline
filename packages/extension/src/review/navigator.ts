@@ -18,6 +18,17 @@ export interface Caret {
   line: number;
 }
 
+/** The multi-diff input has no public class, so a multi-diff tab is one whose input is none of these. */
+const KNOWN_TAB_INPUTS = [
+  vscode.TabInputText,
+  vscode.TabInputTextDiff,
+  vscode.TabInputCustom,
+  vscode.TabInputWebview,
+  vscode.TabInputNotebook,
+  vscode.TabInputNotebookDiff,
+  vscode.TabInputTerminal
+];
+
 /** Opens rounds and files in the diff editors and owns the reviewer's position: the caret and the tour cursor. */
 export class RoundNavigator implements vscode.Disposable {
   private readonly disposables: vscode.Disposable[] = [];
@@ -120,6 +131,18 @@ export class RoundNavigator implements vscode.Disposable {
     );
   }
 
+  /**
+   * A restored multi-diff tab keeps only its source uri and title; the file list came from the
+   * command call, so after a window reload it shows "No Changed Files". There is no public
+   * resolver to give it the list back, so the stale tabs are closed. Compare reopens the round.
+   */
+  closeStaleMultiDiffTabs(): Thenable<boolean> {
+    const stale = vscode.window.tabGroups.all
+      .flatMap((group) => group.tabs)
+      .filter((tab) => tab.label.startsWith('Redline: ') && !KNOWN_TAB_INPUTS.some((type) => tab.input instanceof type));
+    return vscode.window.tabGroups.close(stale);
+  }
+
   async openRound(roundId: string): Promise<void> {
     const round = this.store.round(roundId);
     if (!round) return;
@@ -190,6 +213,11 @@ export class RoundNavigator implements vscode.Disposable {
         ? ordered.findIndex((thread) => thread.id === this.cursor?.threadId)
         : -1;
     await this.revealThread(round, ordered[stepIndex(current === -1 ? undefined : current, delta, ordered.length)]);
+  }
+
+  async openFile(roundId: string, filePath: string): Promise<void> {
+    const round = this.store.round(roundId);
+    if (round?.files.some((file) => file.path === filePath)) await this.openSingleDiff(round, filePath, { preview: true });
   }
 
   async revealNote(roundId: string, threadId: string): Promise<void> {

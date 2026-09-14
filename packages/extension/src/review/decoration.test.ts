@@ -59,6 +59,14 @@ describe('threadDecoration', () => {
     assert.match(threadDecoration(input({ side: 'left' })).label, /\(old\)$/);
   });
 
+  it('marks a detached thread in the label', () => {
+    assert.equal(
+      threadDecoration(input({ resolved: true, detached: true })).label,
+      'resolved · middleware.ts:76 (new, detached)'
+    );
+    assert.doesNotMatch(threadDecoration(input({ detached: false })).label, /detached/);
+  });
+
   it('keeps a claude note in the note stage until a human replies', () => {
     assert.equal(threadDecoration(input({ kind: 'note' })).stage, 'draft');
   });

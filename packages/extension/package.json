@@ -95,6 +95,15 @@
         "title": "Go to note"
       },
       {
+        "command": "redline.toggleView",
+        "title": "Toggle Redline view",
+        "category": "Redline"
+      },
+      {
+        "command": "redline.openFileDiff",
+        "title": "Open file diff"
+      },
+      {
         "command": "redline.submitRound",
         "title": "Submit review",
         "icon": "$(send)"
@@ -118,6 +127,46 @@
         "command": "redline.copyRoundId",
         "title": "Redline: Copy round id",
         "icon": "$(copy)"
+      },
+      {
+        "command": "redline.copyNoteId",
+        "title": "Copy note id",
+        "icon": "$(copy)"
+      },
+      {
+        "command": "redline.copyNoteMarkdown",
+        "title": "Copy note as Markdown",
+        "icon": "$(markdown)"
+      },
+      {
+        "command": "redline.deleteNote",
+        "title": "Delete note",
+        "icon": "$(trash)"
+      },
+      {
+        "command": "redline.resolveNote",
+        "title": "Mark resolved",
+        "icon": "$(pass)"
+      },
+      {
+        "command": "redline.reopenNote",
+        "title": "Reopen note",
+        "icon": "$(issue-reopened)"
+      },
+      {
+        "command": "redline.sendNote",
+        "title": "Send to Agent",
+        "icon": "$(send)"
+      },
+      {
+        "command": "redline.deleteResolvedNotes",
+        "title": "Delete resolved notes",
+        "icon": "$(trash)"
+      },
+      {
+        "command": "redline.deleteAllNotes",
+        "title": "Delete all notes",
+        "icon": "$(trash)"
       },
       {
         "command": "redline.editComment",
@@ -261,6 +310,11 @@
         "command": "redline.resolveThread",
         "key": "ctrl+alt+r r",
         "mac": "cmd+alt+r r"
+      },
+      {
+        "command": "redline.toggleView",
+        "key": "ctrl+alt+r v",
+        "mac": "cmd+alt+r v"
       }
     ],
     "menus": {
@@ -290,11 +344,47 @@
           "when": "false"
         },
         {
+          "command": "redline.openFileDiff",
+          "when": "false"
+        },
+        {
           "command": "redline.submitRound",
           "when": "false"
         },
         {
           "command": "redline.reloadView",
+          "when": "false"
+        },
+        {
+          "command": "redline.copyNoteId",
+          "when": "false"
+        },
+        {
+          "command": "redline.copyNoteMarkdown",
+          "when": "false"
+        },
+        {
+          "command": "redline.deleteNote",
+          "when": "false"
+        },
+        {
+          "command": "redline.resolveNote",
+          "when": "false"
+        },
+        {
+          "command": "redline.reopenNote",
+          "when": "false"
+        },
+        {
+          "command": "redline.sendNote",
+          "when": "false"
+        },
+        {
+          "command": "redline.deleteResolvedNotes",
+          "when": "false"
+        },
+        {
+          "command": "redline.deleteAllNotes",
           "when": "false"
         }
       ],
@@ -323,6 +413,46 @@
           "command": "redline.dropRound",
           "group": "1_manage@1",
           "when": "view == redline.rounds && viewItem =~ /^redline\\.round\\./"
+        },
+        {
+          "command": "redline.deleteResolvedNotes",
+          "group": "1_manage@0",
+          "when": "view == redline.rounds && viewItem == redline.notes"
+        },
+        {
+          "command": "redline.deleteAllNotes",
+          "group": "1_manage@1",
+          "when": "view == redline.rounds && viewItem == redline.notes"
+        },
+        {
+          "command": "redline.sendNote",
+          "group": "1_act@0",
+          "when": "view == redline.rounds && viewItem =~ /^redline\\.(draft|submitted)$/"
+        },
+        {
+          "command": "redline.resolveNote",
+          "group": "1_act@1",
+          "when": "view == redline.rounds && viewItem =~ /^redline\\.(note|draft|submitted|sent)$/"
+        },
+        {
+          "command": "redline.reopenNote",
+          "group": "1_act@1",
+          "when": "view == redline.rounds && viewItem == redline.resolved"
+        },
+        {
+          "command": "redline.copyNoteId",
+          "group": "2_manage@0",
+          "when": "view == redline.rounds && viewItem =~ /^redline\\.(note|draft|submitted|sent|resolved)$/"
+        },
+        {
+          "command": "redline.copyNoteMarkdown",
+          "group": "2_manage@1",
+          "when": "view == redline.rounds && viewItem =~ /^redline\\.(note|draft|submitted|sent|resolved)$/"
+        },
+        {
+          "command": "redline.deleteNote",
+          "group": "2_manage@2",
+          "when": "view == redline.rounds && viewItem =~ /^redline\\.(note|draft|submitted|sent|resolved)$/"
         }
       ],
       "comments/commentThread/context": [
