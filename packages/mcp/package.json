@@ -8,7 +8,7 @@
   "homepage": "https://github.com/nikiforovall/redline#readme",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/nikiforovall/redline.git",
+    "url": "git+https://github.com/NikiforovAll/redline.git",
     "directory": "packages/mcp"
   },
   "bugs": {

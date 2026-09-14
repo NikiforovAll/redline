@@ -40,11 +40,7 @@ jobs:
         working-directory: packages/extension
 
       - name: Publish the server to npm
-        # Trusted publishing needs npm 11.5.1+ and a publish from the package directory;
-        # `-w` exchanged the OIDC token for the root package name.
         run: |
-          npm install -g npm@latest
-          npm -v
           v="${{ steps.version.outputs.version }}"
           if npm view "@nikiforovall/redline-mcp@$v" version >/dev/null 2>&1; then
             echo "@nikiforovall/redline-mcp@$v is already on the registry"
