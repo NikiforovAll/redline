@@ -48,8 +48,6 @@ jobs:
           else
             npm publish -w @nikiforovall/redline-mcp --provenance --access public
           fi
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
       - name: Publish the extension to the VS Code marketplace
         run: npx vsce publish --packagePath dist/*.vsix --skip-duplicate
