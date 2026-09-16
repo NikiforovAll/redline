@@ -67,16 +67,11 @@ export interface RoundFile {
   hunks: Hunk[];
 }
 
-export interface NoteHunk {
-  newRange: [number, number];
-  summary: string;
-  rationale?: string;
-}
-
+/** One comment thread the agent posts on the diff. `line` numbers the new side; the thread snaps to the first changed line of the hunk that contains it. */
 export interface Note {
   file: string;
-  summary?: string;
-  hunks?: NoteHunk[];
+  line: number;
+  body: string;
 }
 
 /** `source` opens a round, or refreshes the one with the same label; `roundId` refreshes that round from its stored source. */

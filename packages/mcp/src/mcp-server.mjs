@@ -90,23 +90,13 @@ const SOURCE_SCHEMA = {
 
 const NOTE_SCHEMA = {
   type: 'object',
+  description: 'One comment thread on the diff. The Comments panel previews the first line of body, so that line must stand alone.',
   properties: {
-    file: { type: 'string' },
-    summary: { type: 'string' },
-    hunks: {
-      type: 'array',
-      items: {
-        type: 'object',
-        properties: {
-          newRange: { type: 'array', items: { type: 'number' }, minItems: 2, maxItems: 2 },
-          summary: { type: 'string' },
-          rationale: { type: 'string' }
-        },
-        required: ['newRange', 'summary']
-      }
-    }
+    file: { type: 'string', description: 'Path as the diff names it, relative to the workspace root.' },
+    line: { type: 'integer', minimum: 1, description: 'A line number on the new side of the diff. The thread snaps to the first changed line of the hunk that contains it.' },
+    body: { type: 'string', description: 'Markdown. First line is the one-sentence caption; a blank line, then any explanation.' }
   },
-  required: ['file']
+  required: ['file', 'line', 'body']
 };
 
 const TOOLS = [

@@ -76,7 +76,7 @@ The plugin registers an MCP server named `redline`. Claude calls these; you rare
 { "kind": "files", "pairs": [{ "left": "a.ts", "right": "b.ts" }] }
 ```
 
-A note is `{ file, summary?, hunks?: [{ newRange: [start, end], summary, rationale? }] }`. Summaries and rationales are markdown; relative links resolve against the workspace root and `#L<line>` opens the file at that line.
+A note is `{ file, line, body }`: one comment thread on the diff. `line` is on the new side, and the thread snaps to the first changed line of the hunk that contains it. `body` is markdown; the Comments panel previews its first line. Relative links resolve against the workspace root and `#L<line>` opens the file at that line.
 
 ### Window selection
 

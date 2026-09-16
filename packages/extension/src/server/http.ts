@@ -58,7 +58,11 @@ function isAnchor(value: unknown): value is Anchor {
 }
 
 function isNotes(value: unknown): value is Note[] {
-  return Array.isArray(value) && value.length > 0 && value.every((note) => typeof note?.file === 'string');
+  return (
+    Array.isArray(value) &&
+    value.length > 0 &&
+    value.every((note) => typeof note?.file === 'string' && Number.isInteger(note.line) && note.line >= 1 && typeof note.body === 'string')
+  );
 }
 
 const REPLAY_LIMIT = 200;
@@ -248,7 +252,7 @@ export async function startServer(options: StartServerOptions): Promise<RunningS
       }
       const body = (await readJsonBody(req).catch(() => null)) as { notes?: unknown } | null;
       if (!isNotes(body?.notes)) {
-        send(res, 400, { error: 'redline: add_notes needs notes, a non-empty array of {file, summary?, hunks?}' });
+        send(res, 400, { error: 'redline: add_notes needs notes, a non-empty array of {file, line, body}' });
         return;
       }
       const threadIds = store.addNotes(round.id, body.notes);

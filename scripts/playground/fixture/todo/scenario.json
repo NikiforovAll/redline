@@ -3,27 +3,23 @@
   "notes": [
     {
       "file": "src/dates.mjs",
-      "summary": "**[1/4]** New module. Due dates come in as `YYYY-MM-DD` strings and live as UTC dates so a local time zone cannot shift the day.",
-      "hunks": [
-        {
-          "match": "export function parseDue(text) {",
-          "summary": "**[2/4]** Strict format. Anything but `YYYY-MM-DD` throws, so a bad date fails at `add`, not when the list prints.",
-          "rationale": "Silently accepting `Date.parse` output would let `2026-1-5` through as a local-time date."
-        }
-      ]
+      "match": "const DUE = /^(\\d{4})-(\\d{2})-(\\d{2})$/;",
+      "body": "**[1/4]** New module. Due dates come in as `YYYY-MM-DD` strings and live as UTC dates so a local time zone cannot shift the day."
+    },
+    {
+      "file": "src/dates.mjs",
+      "match": "export function parseDue(text) {",
+      "body": "**[2/4]** Strict format. Anything but `YYYY-MM-DD` throws, so a bad date fails at `add`, not when the list prints.\n\nSilently accepting `Date.parse` output would let `2026-1-5` through as a local-time date."
     },
     {
       "file": "src/store.mjs",
-      "hunks": [
-        {
-          "match": "export function open() {",
-          "summary": "**[3/4]** `list` becomes `open` and hides completed items. `all` keeps the old behaviour for callers that want everything."
-        },
-        {
-          "match": "export function isOverdue(item, now = new Date()) {",
-          "summary": "**[4/4]** Overdue means the due day is before today, compared as dates, so an item due today is not overdue yet."
-        }
-      ]
+      "match": "export function open() {",
+      "body": "**[3/4]** `list` becomes `open` and hides completed items. `all` keeps the old behaviour for callers that want everything."
+    },
+    {
+      "file": "src/store.mjs",
+      "match": "export function isOverdue(item, now = new Date()) {",
+      "body": "**[4/4]** Overdue means the due day is before today, compared as dates, so an item due today is not overdue yet."
     }
   ],
   "comments": [

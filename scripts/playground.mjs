@@ -76,14 +76,7 @@ function lineOf(file, match) {
 }
 
 function toNotes(notes) {
-  return notes.map((note) => ({
-    file: note.file,
-    summary: note.summary,
-    hunks: (note.hunks ?? []).map((hunk) => {
-      const line = lineOf(note.file, hunk.match);
-      return { newRange: [line, line], summary: hunk.summary, rationale: hunk.rationale };
-    })
-  }));
+  return notes.map((note) => ({ file: note.file, line: lineOf(note.file, note.match), body: note.body }));
 }
 
 /** The extension's server for exactly this folder; another window of a parent folder does not count. */

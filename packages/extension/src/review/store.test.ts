@@ -62,15 +62,7 @@ function fixture(): { store: ReviewStore; roundId: string } {
   const round = store.createRound({
     source: { kind: 'worktree', scope: 'unstaged' },
     notes: [
-      {
-        file: 'src/http/middleware.ts',
-        hunks: [
-          {
-            newRange: [76, 76],
-            summary: 'moved next() after the audit write so failures are recorded before the handler runs'
-          }
-        ]
-      }
+      { file: 'src/http/middleware.ts', line: 76, body: 'moved next() after the audit write so failures are recorded before the handler runs' }
     ]
   });
   store.attachFiles(round.id, [sessionFile(), middlewareFile()]);
@@ -257,29 +249,24 @@ describe('note order', () => {
     const round = store.createRound({
       source: { kind: 'worktree', scope: 'unstaged' },
       notes: [
-        { file: 'src/http/middleware.ts', summary: 'later file' },
-        { file: 'src/auth/session.ts', summary: 'first file' }
+        { file: 'src/http/middleware.ts', line: 74, body: 'later file' },
+        { file: 'src/auth/session.ts', line: 40, body: 'first file' }
       ]
     });
     store.attachFiles(round.id, [sessionFile(), middlewareFile()]);
     const bodies = () => store.round(round.id)!.threads.map((thread) => thread.comments[0].body);
     assert.deepEqual(bodies(), ['first file', 'later file']);
-    store.addNotes(round.id, [{ file: 'src/auth/session.ts', summary: 'added afterwards' }]);
+    store.addNotes(round.id, [{ file: 'src/auth/session.ts', line: 40, body: 'added afterwards' }]);
     assert.deepEqual(bodies(), ['first file', 'later file', 'added afterwards']);
   });
 });
 
 describe('note anchoring', () => {
-  it('snaps a per-hunk note forward to the first added line of its hunk', () => {
+  it('snaps a note forward to the first added line of its hunk', () => {
     const store = new ReviewStore(memoryPersistence());
     const round = store.createRound({
       source: { kind: 'worktree', scope: 'unstaged' },
-      notes: [
-        {
-          file: 'src/http/middleware.ts',
-          hunks: [{ newRange: [74, 77], summary: 'call next() after the audit write' }]
-        }
-      ]
+      notes: [{ file: 'src/http/middleware.ts', line: 74, body: 'call next() after the audit write' }]
     });
     store.attachFiles(round.id, [middlewareFile()]);
     const note = store.round(round.id)!.threads[0];
@@ -295,9 +282,9 @@ describe('note anchoring', () => {
     const round = store.createRound({
       source: { kind: 'worktree', scope: 'unstaged' },
       notes: [
-        { file: 'src/auth/session.ts', summary: 'kept' },
-        { file: 'src/new/file.ts', summary: 'dropped' },
-        { file: 'src/new/file.ts', hunks: [{ newRange: [1, 2], summary: 'dropped too' }] }
+        { file: 'src/auth/session.ts', line: 40, body: 'kept' },
+        { file: 'src/new/file.ts', line: 1, body: 'dropped' },
+        { file: 'src/new/file.ts', line: 2, body: 'dropped too' }
       ]
     });
     store.attachFiles(round.id, [sessionFile()]);
@@ -305,11 +292,11 @@ describe('note anchoring', () => {
     assert.deepEqual(store.summary(round.id).unmatchedNoteFiles, ['src/new/file.ts']);
   });
 
-  it('anchors a per-file summary note to the first added line of the first hunk', () => {
+  it('anchors a note on a context line to the first added line of its hunk', () => {
     const store = new ReviewStore(memoryPersistence());
     const round = store.createRound({
       source: { kind: 'worktree', scope: 'unstaged' },
-      notes: [{ file: 'src/auth/session.ts', summary: 'made the TTL configurable' }]
+      notes: [{ file: 'src/auth/session.ts', line: 40, body: 'made the TTL configurable' }]
     });
     store.attachFiles(round.id, [sessionFile()]);
     const note = store.round(round.id)!.threads[0];
@@ -324,7 +311,7 @@ describe('note anchoring', () => {
     const store = new ReviewStore(memoryPersistence());
     const round = store.createRound({
       source: { kind: 'worktree', scope: 'unstaged' },
-      notes: [{ file: 'src/legacy/parse.ts', summary: 'dropped the input guard' }]
+      notes: [{ file: 'src/legacy/parse.ts', line: 10, body: 'dropped the input guard' }]
     });
     store.attachFiles(round.id, [deletionOnlyFile()]);
     const note = store.round(round.id)!.threads[0];
@@ -339,7 +326,7 @@ describe('note anchoring', () => {
     const store = new ReviewStore(memoryPersistence());
     const round = store.createRound({
       source: { kind: 'worktree', scope: 'unstaged' },
-      notes: [{ file: 'src/legacy/parse.ts', summary: 'dropped the input guard' }]
+      notes: [{ file: 'src/legacy/parse.ts', line: 10, body: 'dropped the input guard' }]
     });
     store.attachFiles(round.id, [deletionOnlyFile()]);
     const note = store.round(round.id)!.threads[0];
@@ -792,8 +779,8 @@ describe('refreshRound', () => {
       files: [sessionFileEdited(), middlewareFile()],
       title: 'Configurable TTL',
       notes: [
-        { file: 'src/auth/session.ts', hunks: [{ newRange: [45, 45], summary: 'TTL now comes from DEFAULT_TTL' }] },
-        { file: 'src/missing.ts', summary: 'nowhere' }
+        { file: 'src/auth/session.ts', line: 45, body: 'TTL now comes from DEFAULT_TTL' },
+        { file: 'src/missing.ts', line: 1, body: 'nowhere' }
       ]
     });
     const round = store.round(roundId)!;
@@ -813,7 +800,7 @@ describe('refreshRound', () => {
     assert.equal(store.round(roundId)!.threads.length, count);
     store.refreshRound(roundId, {
       files: [sessionFileEdited(), middlewareFile()],
-      notes: [{ file: 'src/auth/session.ts', hunks: [{ newRange: [45, 45], summary: 'a new remark' }] }]
+      notes: [{ file: 'src/auth/session.ts', line: 45, body: 'a new remark' }]
     });
     assert.equal(store.round(roundId)!.threads.length, count + 1);
   });
@@ -844,7 +831,7 @@ describe('refreshRound', () => {
     store.markSubmitted(roundId);
     let changes = 0;
     store.onChange(() => changes++);
-    assert.equal(store.refreshRound(roundId, { files: [], notes: [{ file: 'src/auth/session.ts', summary: 'x' }] }), 'kept');
+    assert.equal(store.refreshRound(roundId, { files: [], notes: [{ file: 'src/auth/session.ts', line: 40, body: 'x' }] }), 'kept');
     const round = store.round(roundId)!;
     assert.ok(round.submittedAt);
     assert.equal(round.refreshedAt, undefined);

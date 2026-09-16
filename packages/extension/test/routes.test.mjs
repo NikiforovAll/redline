@@ -76,7 +76,7 @@ test('POST /rounds creates a round, runs the hook, and returns the summary', asy
     body: JSON.stringify({
       source: { kind: 'worktree', scope: 'unstaged' },
       title: 'demo',
-      notes: [{ file: 'src/app.ts', summary: 'renamed the greeting helper' }]
+      notes: [{ file: 'src/app.ts', line: 2, body: 'renamed the greeting helper' }]
     })
   });
   assert.equal(status, 200);
@@ -329,7 +329,7 @@ test('POST /rounds on the source of an open round refreshes it through the hook 
     const again = await post({
       source: { kind: 'worktree', scope: 'staged' },
       title: 'second',
-      notes: [{ file: 'src/app.ts', summary: 'appended' }]
+      notes: [{ file: 'src/app.ts', line: 2, body: 'appended' }]
     });
     assert.equal(again.id, opened.id);
     assert.equal(again.outcome, 'refreshed');
@@ -344,7 +344,7 @@ test('POST /rounds on the source of an open round refreshes it through the hook 
     const patch = await post({ source: { kind: 'patch', text: 'x' } });
     assert.equal(patch.outcome, 'opened');
     assert.notEqual(patch.id, opened.id);
-    const byId = await post({ roundId: opened.id, title: 'third', notes: [{ file: 'src/app.ts', summary: 'by id' }] });
+    const byId = await post({ roundId: opened.id, title: 'third', notes: [{ file: 'src/app.ts', line: 2, body: 'by id' }] });
     assert.equal(byId.id, opened.id);
     assert.equal(byId.outcome, 'refreshed');
     assert.equal(byId.title, 'third');
@@ -359,7 +359,7 @@ test('POST /rounds/{id}/notes posts threads on the current diff without a refres
   const refreshCount = store.round('r1').refreshCount;
   const { status, body } = await api('/rounds/r1/notes', {
     method: 'POST',
-    body: JSON.stringify({ notes: [{ file: 'src/app.ts', summary: 'a remark' }, { file: 'missing.ts', summary: 'x' }] })
+    body: JSON.stringify({ notes: [{ file: 'src/app.ts', line: 2, body: 'a remark' }, { file: 'missing.ts', line: 1, body: 'x' }] })
   });
   assert.equal(status, 200);
   assert.equal(body.id, 'r1');
@@ -369,7 +369,10 @@ test('POST /rounds/{id}/notes posts threads on the current diff without a refres
   assert.equal(store.thread(body.threadIds[0]).kind, 'note');
   const empty = await api('/rounds/r1/notes', { method: 'POST', body: JSON.stringify({ notes: [] }) });
   assert.equal(empty.status, 400);
-  const missing = await api('/rounds/r99/notes', { method: 'POST', body: JSON.stringify({ notes: [{ file: 'a' }] }) });
+  const legacy = await api('/rounds/r1/notes', { method: 'POST', body: JSON.stringify({ notes: [{ file: 'src/app.ts', summary: 'old shape' }] }) });
+  assert.equal(legacy.status, 400);
+  assert.match(legacy.body.error, /\{file, line, body\}/);
+  const missing = await api('/rounds/r99/notes', { method: 'POST', body: JSON.stringify({ notes: [{ file: 'a', line: 1, body: 'x' }] }) });
   assert.equal(missing.status, 404);
 });
 
