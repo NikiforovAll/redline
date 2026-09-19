@@ -55,7 +55,7 @@ function format(event) {
     return (
       `[redline] review submitted: ${plural(Number(event.commentCount) || 0, 'comment')} in ` +
       `${plural(Number(event.fileCount) || 0, 'file')} on ${sanitize(event.sourceLabel)} ` +
-      `(round ${round}). Call get_review("${round}").`
+      `(round ${round}). Call get_review("${round}"${event.revisit === true ? ', {peek: true}' : ''}).`
     );
   }
   if (event.type === 'thread_sent') {
@@ -64,7 +64,7 @@ function format(event) {
     return (
       `[redline] comment sent: ${sanitize(event.file)}:${Number(event.line) || 0} ` +
       `(round ${round}, thread ${thread}). ` +
-      `Call get_review("${round}", {threads: ["${thread}"]}).`
+      `Call get_review("${round}", {threads: ["${thread}"]${event.revisit === true ? ', peek: true' : ''}}).`
     );
   }
   return null;

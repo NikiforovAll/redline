@@ -139,12 +139,15 @@ const TOOLS = [
       'Done: the change landed in the code, or you declined it with the reason. Close it with resolve_comment(threadId, body) and a one-line note. ' +
       "Reviewer's turn: the comment is unclear, you want a yes before changing code, or you answered a question. Post with reply_comment(threadId, body) and leave the thread open. " +
       'Never author, edit, or delete a human comment. ' +
-      'Finish by summarising what changed per thread, then call request_review again on the same source so the round refreshes with your edits; notes are optional there.',
+      'Finish by summarising what changed per thread, then call request_review again on the same source so the round refreshes with your edits; notes are optional there. ' +
+      'On a round you have worked before, pass peek: true. It returns one index line per thread plus only the comments you have not seen, no diff context and no history, and marks those threads delivered like a full read. ' +
+      'Act from the index when the new comments stand on their own; call get_review({roundId, threads: [id]}) only for a thread that needs its context or history.',
     inputSchema: {
       type: 'object',
       properties: {
         roundId: { type: 'string' },
         threads: { type: 'array', items: { type: 'string' } },
+        peek: { type: 'boolean', description: 'Return a compact index of the undelivered threads instead of the full threads.' },
         wait: { type: 'integer', minimum: 0, maximum: WAIT_MAX_S }
       }
     }
@@ -318,10 +321,11 @@ const handlers = {
         return { content: [{ type: 'text', text: 'No undelivered review feedback.' }] };
       }
     }
-    const threads = Array.isArray(args.threads) && args.threads.length > 0
-      ? `?threads=${args.threads.map(encodeURIComponent).join(',')}`
-      : '';
-    const review = await call(`/rounds/${encodeURIComponent(roundId)}/review${threads}`);
+    const params = new URLSearchParams();
+    if (Array.isArray(args.threads) && args.threads.length > 0) params.set('threads', args.threads.join(','));
+    if (args.peek) params.set('peek', '1');
+    const query = params.toString();
+    const review = await call(`/rounds/${encodeURIComponent(roundId)}/review${query ? `?${query}` : ''}`);
     return { content: [{ type: 'text', text: review.markdown }] };
   },
 

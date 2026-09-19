@@ -112,7 +112,25 @@ test('prints the thread_sent variant', async () => {
   );
 });
 
+test('points a re-sent thread at a peek', async () => {
+  const before = stdoutLines.length;
+  await emit(server, {
+    type: 'thread_sent',
+    roundId: 'r3',
+    threadId: 't-9f2a',
+    file: 'src/auth/session.ts',
+    line: 42,
+    revisit: true
+  });
+  await waitForMonitor(() => stdoutLines.length > before, 5000, 'revisit thread line');
+  assert.equal(
+    stdoutLines[before],
+    '[redline] comment sent: src/auth/session.ts:42 (round r3, thread t-9f2a). Call get_review("r3", {threads: ["t-9f2a"], peek: true}).'
+  );
+});
+
 test('strips control characters from event fields', async () => {
+  const before = stdoutLines.length;
   await emit(server, {
     type: 'review_submitted',
     roundId: 'r4',
@@ -120,9 +138,9 @@ test('strips control characters from event fields', async () => {
     fileCount: 1,
     sourceLabel: 'bad\nlabel'
   });
-  await waitForMonitor(() => stdoutLines.length >= 3, 5000, 'sanitised line');
+  await waitForMonitor(() => stdoutLines.length > before, 5000, 'sanitised line');
   assert.equal(
-    stdoutLines[2],
+    stdoutLines[before],
     '[redline] review submitted: 1 comment in 1 file on bad label (round r4). Call get_review("r4").'
   );
 });
@@ -140,6 +158,23 @@ test('uses singular nouns for a one comment, one file review', async () => {
   assert.equal(
     stdoutLines[before],
     '[redline] review submitted: 1 comment in 1 file on staged changes (round r6). Call get_review("r6").'
+  );
+});
+
+test('points a revisited round at a peek', async () => {
+  const before = stdoutLines.length;
+  await emit(server, {
+    type: 'review_submitted',
+    roundId: 'r7',
+    commentCount: 2,
+    fileCount: 1,
+    sourceLabel: 'staged changes',
+    revisit: true
+  });
+  await waitForMonitor(() => stdoutLines.length > before, 5000, 'revisit line');
+  assert.equal(
+    stdoutLines[before],
+    '[redline] review submitted: 2 comments in 1 file on staged changes (round r7). Call get_review("r7", {peek: true}).'
   );
 });
 

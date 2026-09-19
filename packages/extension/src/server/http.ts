@@ -276,7 +276,7 @@ export async function startServer(options: StartServerOptions): Promise<RunningS
         .split(',')
         .map((value) => value.trim())
         .filter((value) => value.length > 0);
-      send(res, 200, store.renderReview(round.id, threads));
+      send(res, 200, store.renderReview(round.id, { threads, peek: query.get('peek') === '1' }));
       return;
     }
     if (req.method === 'POST' && segments[0] === 'threads' && segments.length === 3) {

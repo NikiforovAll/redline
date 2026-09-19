@@ -49,7 +49,7 @@ After Claude makes a change you want to understand, type:
 /redline:redline-tour
 ```
 
-Claude reads its diff and decides where a reader should start. Usually that is the entry point or the type everything else depends on, then the callers, then the tests. It picks the hunks you need to understand, skips the mechanical ones, and posts one numbered note per stop with what the hunk does and why the change needs it. `Ctrl+Alt+]` and `Ctrl+Alt+[` step through the stops, and the Redline panel lists them in order.
+Claude reads its diff and decides where a reader should start. Usually that is the entry point or the type everything else depends on, then the callers, then the tests. It posts one numbered note per idea in the change, usually three to five. Each note sits on the hunk where the idea lives and says what the hunk does and why the change needs it. Files that only carry an idea, such as type plumbing or docs, are named in that note and get none of their own. `Ctrl+Alt+]` and `Ctrl+Alt+[` step through the stops, and the Redline panel lists them in order.
 
 Every stop is a normal thread. Reply on one to ask about that hunk, submit, and Claude answers there. Anything Claude noticed while writing the tour, such as a risk or a better approach, goes in its chat reply rather than on the diff, so the tour stays a tour.
 
@@ -110,8 +110,6 @@ One markdown document per fetch:
 ````markdown
 # Review: unstaged changes, 2 comments in 2 files
 
-Done thread (change landed, or declined with a reason): resolve_comment(id). Reviewer's turn (question, proposal, answer): reply_comment(id), thread stays open.
-
 ## src/app.ts
 
 ### :2 right  [t-97a96a8e]
@@ -121,5 +119,7 @@ Done thread (change landed, or declined with a reason): resolve_comment(id). Rev
 ```
 **you:** Make punctuation required; the default hides call sites that forgot it.
 ````
+
+On a round it has worked before, Claude fetches a peek first: one line per thread with its id, position, state and comment count, followed by only the comments it has not seen. The same happens when you send a single thread from a round Claude already read. It acts from those lines when they stand on their own and fetches the full thread, with its diff context and history, only when they do not.
 
 Claude works through the threads in file order. Each thread ends in one of two ways. When the change landed, or Claude declined it and said why, Claude closes the thread with `resolve_comment` and a one-line note, and VS Code shows it as resolved. When Claude has a question or a proposal instead, it posts that with `reply_comment` and the thread stays open for you. Claude never edits or deletes a comment you wrote. It finishes with a summary per thread and calls `request_review` again on the same source, which refreshes the round with its edits.

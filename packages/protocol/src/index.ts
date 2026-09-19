@@ -123,6 +123,8 @@ export interface ReviewSubmittedEvent {
   commentCount: number;
   fileCount: number;
   sourceLabel: string;
+  /** The agent already read a thread of this round; the wake then points at a peek. */
+  revisit?: boolean;
 }
 
 export interface ThreadSentEvent {
@@ -131,6 +133,8 @@ export interface ThreadSentEvent {
   threadId: string;
   file: string;
   line: number;
+  /** The agent already read this round; the wake then points at a peek of the thread. */
+  revisit?: boolean;
 }
 
 export type ReviewEvent = ReviewSubmittedEvent | ThreadSentEvent;

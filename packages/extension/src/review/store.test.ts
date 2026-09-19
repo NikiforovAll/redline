@@ -144,8 +144,6 @@ describe('renderReview', () => {
       [
         '# Review: unstaged changes, 3 comments in 2 files',
         '',
-        "Done thread (change landed, or declined with a reason): resolve_comment(id). Reviewer's turn (question, proposal, answer): reply_comment(id), thread stays open.",
-        '',
         '## src/auth/session.ts',
         '',
         `### :18 left  [${t2.id}]`,
@@ -214,10 +212,103 @@ describe('renderReview', () => {
       'human',
       'bbb'
     );
-    const { markdown, delivered } = store.renderReview(roundId, [a.id]);
+    const { markdown, delivered } = store.renderReview(roundId, { threads: [a.id] });
     assert.deepEqual(delivered, [a.id]);
     assert.ok(markdown.includes('aaa'));
     assert.ok(!markdown.includes('bbb'));
+  });
+});
+
+describe('renderReview peek', () => {
+  const ttlLine = { file: 'src/auth/session.ts', side: 'right' as const, newLine: 42 };
+
+  it('lists one index entry per thread with only the unseen comments, and delivers them', () => {
+    const { store, roundId } = fixture();
+    const thread = store.addThread(roundId, ttlLine, 'human', 'first ask');
+    store.markSubmitted(roundId);
+    store.renderReview(roundId);
+    store.addComment(thread.id, 'claude', 'done, renamed it');
+    store.addComment(thread.id, 'human', 'still wrong here');
+    store.addComment(thread.id, 'human', 'and the test too');
+    const note = store.round(roundId)!.threads.find((entry) => entry.kind === 'note')!;
+    store.addComment(note.id, 'human', 'wrap the audit write in try/catch');
+    store.markSubmitted(roundId);
+
+    const { markdown, delivered } = store.renderReview(roundId, { peek: true });
+    assert.deepEqual(delivered.sort(), [thread.id, note.id].sort());
+    assert.equal(
+      markdown,
+      [
+        '# Review peek: unstaged changes, 4 comments in 2 files',
+        '',
+        `Only the comments you have not seen are shown. For the diff context and the full thread, call get_review({roundId: "${roundId}", threads: [id]}).`,
+        '',
+        `- ${thread.id}  src/auth/session.ts:42 right  open · 4 comments, 2 new`,
+        '  human: "still wrong here"',
+        '  human: "and the test too"',
+        `- ${note.id}  src/http/middleware.ts:75 right  open · 2 comments, 1 new`,
+        '  human: "wrap the audit write in try/catch"',
+        ''
+      ].join('\n')
+    );
+    const again = store.renderReview(roundId, { peek: true });
+    assert.deepEqual(again.delivered, []);
+    assert.match(again.markdown, /No undelivered comments\./);
+  });
+
+  it('peeks one re-sent thread with its new comment only', () => {
+    const { store, roundId } = fixture();
+    const thread = store.addThread(roundId, ttlLine, 'human', 'first ask');
+    store.markSubmitted(roundId);
+    store.renderReview(roundId);
+    store.addComment(thread.id, 'claude', 'renamed it');
+    store.addComment(thread.id, 'human', 'thanks, and export it');
+    store.markSent(thread.id);
+    const { markdown, delivered } = store.renderReview(roundId, { threads: [thread.id], peek: true });
+    assert.deepEqual(delivered, [thread.id]);
+    assert.ok(markdown.includes(`- ${thread.id}  src/auth/session.ts:42 right  open · 3 comments, 1 new`));
+    assert.ok(markdown.includes('  human: "thanks, and export it"'));
+    assert.ok(!markdown.includes('first ask'));
+    assert.ok(!markdown.includes('renamed it'));
+  });
+
+  it('still returns the full thread after a peek delivered it, and flags the next submit as a revisit', () => {
+    const { store, roundId } = fixture();
+    const thread = store.addThread(roundId, ttlLine, 'human', 'name the constant');
+    assert.equal(store.markSubmitted(roundId).revisit, false);
+    store.renderReview(roundId, { peek: true });
+    store.addComment(thread.id, 'human', 'and export it');
+    assert.equal(store.markSubmitted(roundId).revisit, true);
+    const { markdown, delivered } = store.renderReview(roundId, { threads: [thread.id] });
+    assert.deepEqual(delivered, [thread.id]);
+    assert.ok(markdown.includes('```diff'));
+    assert.ok(markdown.includes('**human:** name the constant'));
+  });
+
+  it('marks a resolved thread', () => {
+    const { store, roundId } = fixture();
+    const thread = store.addThread(roundId, ttlLine, 'human', 'name the constant');
+    store.setResolved(thread.id, true);
+    const { markdown } = store.renderReview(roundId, { threads: [thread.id], peek: true });
+    assert.ok(markdown.includes(`- ${thread.id}  src/auth/session.ts:42 right  resolved · 1 comment, 1 new`));
+  });
+
+  it('marks a detached thread and keeps its last known line', () => {
+    const { store, roundId } = fixture();
+    const thread = store.addThread(roundId, ttlLine, 'human', 'name the constant');
+    store.refreshRound(roundId, { files: [sessionFileEdited(), middlewareFile()] });
+    assert.equal(store.thread(thread.id)!.detached, true);
+    store.markSubmitted(roundId);
+    const { markdown } = store.renderReview(roundId, { peek: true });
+    assert.ok(markdown.includes(`- ${thread.id}  src/auth/session.ts:42 right  open · detached · 1 comment, 1 new`));
+    assert.ok(!markdown.includes('```'));
+  });
+
+  it('reports nothing undelivered', () => {
+    const { store, roundId } = fixture();
+    const { markdown, delivered } = store.renderReview(roundId, { peek: true });
+    assert.deepEqual(delivered, []);
+    assert.equal(markdown, '# Review peek: unstaged changes, 0 comments in 0 files\n\nNo undelivered comments.\n');
   });
 });
 
@@ -338,8 +429,6 @@ describe('note anchoring', () => {
       markdown,
       [
         '# Review: unstaged changes, 1 comment in 1 file',
-        '',
-        "Done thread (change landed, or declined with a reason): resolve_comment(id). Reviewer's turn (question, proposal, answer): reply_comment(id), thread stays open.",
         '',
         '## src/legacy/parse.ts',
         '',
@@ -880,6 +969,6 @@ describe('resolve', () => {
     store.setResolved(thread.id, false);
     assert.ok(store.drafts(roundId).some((entry) => entry.id === thread.id));
     store.setResolved(thread.id, true);
-    assert.match(store.renderReview(roundId, [thread.id]).markdown, /\(resolved\)/);
+    assert.match(store.renderReview(roundId, { threads: [thread.id] }).markdown, /\(resolved\)/);
   });
 });
