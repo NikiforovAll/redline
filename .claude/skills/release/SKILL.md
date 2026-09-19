@@ -7,7 +7,7 @@ disable-model-invocation: true
 
 # release
 
-Ship the extension and the server under one version. The laptop bumps, checks, commits, and pushes the tag `v<version>`; the Release workflow (`.github/workflows/release.yml`) publishes `@nikiforovall/redline-mcp` to npm, the extension to the VS Code marketplace, and the `.vsix` to a GitHub release. The plugin has its own version and only pins the server; `docs/PUBLISHING.md`, section "Two versions", has the reasons.
+Ship the extension and the server under one version. The laptop bumps, checks, commits, and pushes the tag `v<version>`; the Release workflow (`.github/workflows/release.yml`) packages the vsix and publishes `@nikiforovall/redline-mcp` to npm, the extension to the VS Code marketplace, and the `.vsix` to a GitHub release. Nothing is packaged or published from the laptop. The plugin has its own version and only pins the server; `docs/PUBLISHING.md`, section "Two versions", has the reasons.
 
 `$ARGUMENTS` is the bump level (`patch` when empty, `minor`, `major`) or an explicit `X.Y.Z`, plus flags: `--plugin` also moves the plugin to its next patch so installed plugins pick up the new pin; `--dry-run` ends the run after the checks with the bump left in the working tree.
 
@@ -23,11 +23,14 @@ Stop at the first failure and report the line that failed.
 
 ## Bump
 
-1. `npm version <version> -w redline-extension -w @nikiforovall/redline-mcp --no-git-tag-version`.
-2. Edit `packages/claude-plugin/scripts/pin.json` so `@nikiforovall/redline-mcp` is `<version>`.
-3. With `--plugin`, edit `version` in `packages/claude-plugin/.claude-plugin/plugin.json` to its next patch.
+Edit the `"version"` line in each file with the Edit tool. `npm version` rewrites the manifests in expanded JSON and produces a 40-line diff, so it stays out of this step.
 
-Done when `git -C <root> diff --stat` lists the two manifests, the lockfile, `pin.json`, and with `--plugin` `plugin.json`, nothing else.
+1. `packages/extension/package.json` and `packages/mcp/package.json` to `<version>`.
+2. `packages/claude-plugin/scripts/pin.json` so `@nikiforovall/redline-mcp` is `<version>`.
+3. `npm install --package-lock-only` so the lockfile carries the new versions.
+4. With `--plugin`, `version` in `packages/claude-plugin/.claude-plugin/plugin.json` to its next patch.
+
+Done when `git -C <root> diff --stat` lists the two manifests, the lockfile, `pin.json`, and with `--plugin` `plugin.json`, each with one changed line, and `npm run check:versions` prints `<version>`.
 
 ## Check
 
@@ -36,28 +39,33 @@ Done when `git -C <root> diff --stat` lists the two manifests, the lockfile, `pi
 ```sh
 npm run build
 npm test > "<log>" 2>&1; echo "npm test exit $?"; rg '^ℹ (pass|fail) ' "<log>"
-npm publish -w @nikiforovall/redline-mcp --dry-run
-npm run release
 ```
 
-Done when the test exit is `0` with three `fail 0` lines, the dry run prints no `npm warn publish` line, and `dist/redline-extension-<version>.vsix` exists. With `--dry-run`, report and stop here.
+Done when the test exit is `0` with three `fail 0` lines. With `--dry-run`, report and stop here.
 
 ## Confirm
 
-Show the dry-run file list and the vsix size, then ask one question with `AskUserQuestion`: push `v<version>` now, or stop. Nothing so far has left the machine. Everything after is irreversible: the tag triggers the workflow, and npm never accepts a version twice.
+Show the bump diff stat and the test summary, then ask one question with `AskUserQuestion`: push `v<version>` now, or stop. Skip the question when the user's request already says to publish. Nothing so far has left the machine. Everything after is irreversible: the tag triggers the workflow, and npm never accepts a version twice.
 
 ## Publish
 
 ```sh
 git -C <root> add -A && git -C <root> commit -m "chore: release v<version>"
 git -C <root> push origin main
-npm run release -- --tag
-gh run watch --exit-status
+git -C <root> tag -a v<version> -m v<version> && git -C <root> push origin v<version>
+gh run list --workflow Release --limit 1 --json databaseId,headBranch,status
+gh run watch <id> --exit-status --interval 15
 ```
 
-Run them in order and stop at the first non-zero exit. `gh run watch` picks the newest run; confirm its name is `Release` and its ref is the tag. Every publish step in the workflow skips a version that already exists, so a failed run is fixed by fixing the cause and `gh run rerun <id>`, never by a new tag.
+Run them in order and stop at the first non-zero exit. The run list can lag the push by a few seconds; its `headBranch` must be the tag before watching. Every publish step in the workflow skips a version that already exists, so a failed run is fixed by fixing the cause and `gh run rerun <id>`, never by a new tag.
 
-Done when the run is green, `npm view @nikiforovall/redline-mcp version` prints `<version>`, `npx vsce show nikiforovall.redline-extension --json | rg '"version": "<version>"'` matches, and `gh release view v<version> --json assets -q '.assets[].name'` lists the vsix.
+Done when the run is green and these three agree with `<version>`; the registry and the marketplace index a minute or two after the run, so retry them with a pause between attempts:
+
+```sh
+npm view @nikiforovall/redline-mcp version
+npx vsce show nikiforovall.redline-extension --json | rg '"version": "<version>"'
+gh release view v<version> --json assets -q '.assets[].name'
+```
 
 ## Report
 
