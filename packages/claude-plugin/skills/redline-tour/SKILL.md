@@ -17,7 +17,7 @@ Read the diff for the chosen source before writing anything.
 A tour note is a guide's caption: it tells the reader what the hunk does and why the change needs it, in the voice of the author walking someone through their own work. Every note in `notes` is a numbered stop on the tour; the numbered sequence is the complete list. Anything else you noticed while reading the diff, such as a bug, a risk, an open question, or a better approach, goes in your chat reply under a "Noticed" line after the round report, where the user decides what to do with it.
 
 1. Decide the reading order. Start where the change begins for a reader: the entry point, the type or contract that everything else depends on, then callers, then tests. Not file order, not diff order.
-2. Pick the stops. A stop is one note on one hunk the reader must understand to follow the change. A file whose role needs a sentence gets it in the body of its first stop. You choose which parts matter; a file with only mechanical hunks such as renames, imports, or formatting gets no stop at all. A short tour that lands on the right places beats one that covers everything.
+2. Pick the stops. A stop is one idea. It sits on the hunk where that idea lives, and its body names the other files that only carry the idea. Most changes have three to five ideas. A stop count near the file count means the tour walks files. Before posting, remove every stop a reader could skip and still follow the change. Renames, imports, formatting, type plumbing, and doc updates go first.
 3. Number every note with a bold bracketed prefix on the first line of its `body`: `**[<n>/<total>]** `. The reader follows the numbers through the Comments panel.
 
 Example for a three-note tour:
