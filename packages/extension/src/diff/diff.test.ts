@@ -178,6 +178,54 @@ describe('patch', () => {
   });
 });
 
+describe('text files that git calls binary', () => {
+  let own: Fixture;
+
+  before(async () => {
+    own = createFixture();
+    writeFileSync(path.join(own.root, 'sep.ts'), fixtureContents.NUL_V1, 'utf8');
+    writeFileSync(path.join(own.root, 'logo.bin'), Buffer.from([0x89, 0x50, 0x4e, 0x47, 0, 0xff, 0xfe, 0x01]));
+    await git(own.root, ['add', 'sep.ts', 'logo.bin']);
+    await git(own.root, ['commit', '-q', '-m', 'nul and binary']);
+    writeFileSync(path.join(own.root, 'sep.ts'), fixtureContents.NUL_V2, 'utf8');
+    writeFileSync(path.join(own.root, 'logo.bin'), Buffer.from([0x89, 0x50, 0x4e, 0x47, 0, 0xff, 0xfe, 0x02]));
+  });
+
+  after(() => {
+    own.dispose();
+  });
+
+  it('diffs a source file with a NUL byte as text and keeps a real binary as binary', async () => {
+    const snapshot = await buildSnapshot({ kind: 'worktree', scope: 'unstaged' }, own.root);
+    const files = byPath(snapshot.files);
+
+    const nul = files.get('sep.ts')!;
+    assert.equal(nul.status, 'modified');
+    assert.equal(nul.left, fixtureContents.NUL_V1);
+    assert.equal(nul.right, fixtureContents.NUL_V2);
+    assert.deepEqual(
+      nul.hunks[0].lines.filter((line) => line.kind !== 'context').map((line) => [line.kind, line.content]),
+      [
+        ['del', 'export const one = 1;'],
+        ['add', 'export const one = 2;']
+      ]
+    );
+
+    const logo = files.get('logo.bin')!;
+    assert.equal(logo.status, 'binary');
+    assert.equal(logo.left, null);
+    assert.equal(logo.right, null);
+    assert.deepEqual(logo.hunks, []);
+  });
+
+  it('applies to ranges too', async () => {
+    const snapshot = await buildSnapshot({ kind: 'range', from: 'HEAD', to: 'worktree' }, own.root);
+    const nul = byPath(snapshot.files).get('sep.ts')!;
+    assert.equal(nul.status, 'modified');
+    assert.equal(nul.hunks.length, 1);
+  });
+});
+
 describe('files', () => {
   let dir: string;
 

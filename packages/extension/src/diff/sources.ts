@@ -117,8 +117,26 @@ function baseEntry(file: ParsedFile): SnapshotFile {
 }
 
 type SideLoader = (file: ParsedFile, entry: SnapshotFile) => Promise<string | null>;
+type TextPatchLoader = (paths: string[]) => Promise<string>;
 
 const LOAD_CONCURRENCY = 8;
+
+/**
+ * Git calls a file binary on the first NUL byte, so a source file that embeds one as a separator loses its
+ * hunks. A side is text for our purposes when it decodes as UTF-8 without replacement characters and holds
+ * only a handful of NULs, or under 1% of its length in a large file; a real binary fails the first check.
+ */
+function looksText(content: string | null): boolean {
+  if (content === null) return true;
+  if (content.includes('�')) return false;
+  let nuls = 0;
+  for (let i = 0; i < content.length; i++) if (content.charCodeAt(i) === 0) nuls++;
+  return nuls <= 8 || nuls * 100 <= content.length;
+}
+
+function textPatchArgs(file: ParsedFile): string[] {
+  return ['--text', '--', ...new Set([file.oldPath, file.newPath].filter((p): p is string => p !== null))];
+}
 
 async function mapBounded<T, R>(
   items: T[],
@@ -140,15 +158,23 @@ async function mapBounded<T, R>(
 async function buildEntries(
   patch: string,
   loadLeft: SideLoader,
-  loadRight: SideLoader
+  loadRight: SideLoader,
+  loadTextPatch?: TextPatchLoader
 ): Promise<SnapshotFile[]> {
   return mapBounded(parsePatch(patch), LOAD_CONCURRENCY, async (file) => {
     const entry = baseEntry(file);
-    if (entry.status === 'binary') return entry;
+    if (entry.status === 'binary' && !loadTextPatch) return entry;
     const [left, right] = await Promise.all([
       file.status === 'added' ? Promise.resolve(null) : loadLeft(file, entry),
       file.status === 'deleted' ? Promise.resolve(null) : loadRight(file, entry)
     ]);
+    if (entry.status === 'binary') {
+      if (!looksText(left) || !looksText(right)) return entry;
+      const retried = parsePatch(await loadTextPatch!(textPatchArgs(file)))[0];
+      if (!retried || retried.binary) return entry;
+      entry.status = file.status;
+      entry.hunks = retried.hunks;
+    }
     entry.left = left;
     entry.right = right;
     return entry;
@@ -198,7 +224,8 @@ async function worktreeSnapshot(
     const files = await buildEntries(
       patch,
       (file) => showBlob(repoRoot, baseRev, file.oldPath as string),
-      (file) => gitOrNull(repoRoot, ['show', `:${file.newPath as string}`])
+      (file) => gitOrNull(repoRoot, ['show', `:${file.newPath as string}`]),
+      (paths) => gitDiff(repoRoot, ['--cached', baseRev, ...paths])
     );
     return { files };
   }
@@ -211,7 +238,12 @@ async function worktreeSnapshot(
       : (file: ParsedFile) => showBlob(repoRoot, baseRev, file.oldPath as string);
   const patch = await gitDiff(repoRoot, base);
   const [tracked, untracked] = await Promise.all([
-    buildEntries(patch, loadLeft, (file) => readDisk(repoRoot, file.newPath as string)),
+    buildEntries(
+      patch,
+      loadLeft,
+      (file) => readDisk(repoRoot, file.newPath as string),
+      (paths) => gitDiff(repoRoot, [...base, ...paths])
+    ),
     untrackedFiles(repoRoot)
   ]);
   return { files: [...tracked, ...untracked] };
@@ -254,7 +286,8 @@ async function rangeSnapshot(repoRoot: string, from: string, to: string): Promis
   const files = await buildEntries(
     patch,
     (file) => showBlob(repoRoot, leftRev, file.oldPath as string),
-    (file) => showBlob(repoRoot, rightRev, file.newPath as string)
+    (file) => showBlob(repoRoot, rightRev, file.newPath as string),
+    (paths) => gitDiff(repoRoot, [spec, ...paths])
   );
   return { files };
 }

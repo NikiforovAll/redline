@@ -19,8 +19,10 @@ function write(root: string, relative: string, content: string): void {
 const A_V1 = ['line1', 'line2', 'line3', 'line4', 'line5', 'line6'].join('\n') + '\n';
 const A_V2 = ['line1', 'line2', 'line3-commit2', 'line4', 'line5', 'line6'].join('\n') + '\n';
 const A_V3 = ['line1', 'line2', 'line3-commit2', 'line4', 'line5-dirty', 'line6'].join('\n') + '\n';
+const NUL_V1 = ['const sep = "a\0b";', 'export const one = 1;'].join('\n') + '\n';
+const NUL_V2 = ['const sep = "a\0b";', 'export const one = 2;'].join('\n') + '\n';
 
-export const fixtureContents = { A_V1, A_V2, A_V3 };
+export const fixtureContents = { A_V1, A_V2, A_V3, NUL_V1, NUL_V2 };
 
 export function createFixture(): Fixture {
   const root = mkdtempSync(path.join(tmpdir(), 'redline-fixture-'));
