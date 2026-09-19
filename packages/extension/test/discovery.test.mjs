@@ -134,10 +134,8 @@ test('prefers the window whose main process is VSCODE_PID over app name', async 
     app: 'vscode-insiders'
   });
   try {
-    await assert.rejects(
-      () => discover(workspace, { VSCODE_PID: '424242', REDLINE_VSCODE_APP: 'vscode' }),
-      /lock stale \(ping failed\), remove .*ghost\.lock/
-    );
+    const preferred = await discover(workspace, { VSCODE_PID: '424242', REDLINE_VSCODE_APP: 'vscode' });
+    assert.equal(preferred.port, server.port, 'a dead preferred window falls through to the live one');
     const fallback = await discover(workspace, { VSCODE_PID: '1', REDLINE_VSCODE_APP: 'vscode' });
     assert.equal(fallback.port, server.port);
   } finally {

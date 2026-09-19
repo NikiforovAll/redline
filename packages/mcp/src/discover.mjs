@@ -42,6 +42,18 @@ async function ping(lock) {
   return await res.json();
 }
 
+const PING_RETRY_DELAY_MS = Number(process.env.REDLINE_PING_RETRY_MS) || 500;
+
+/** One retry covers an extension host that is busy or mid-reload; a window that is gone fails both. */
+async function pingWithRetry(lock) {
+  try {
+    return await ping(lock);
+  } catch {
+    await new Promise((resolve) => setTimeout(resolve, PING_RETRY_DELAY_MS));
+    return await ping(lock);
+  }
+}
+
 export const DISCOVER_NO_LOCK = 'no_lock';
 export const DISCOVER_STALE_LOCK = 'stale_lock';
 
@@ -89,7 +101,7 @@ export async function discover(cwd = process.cwd(), env = process.env) {
   }
 
   const caller = callerWindow(env);
-  const chosen = live
+  const candidates = live
     .flatMap((lock) =>
       lock.workspaceFolders.filter((folder) => contains(folder, target)).map((folder) => ({ lock, folder }))
     )
@@ -98,11 +110,9 @@ export async function discover(cwd = process.cwd(), env = process.env) {
         b.folder.length - a.folder.length ||
         affinity(b.lock, caller) - affinity(a.lock, caller) ||
         String(b.lock.startedAt ?? '').localeCompare(String(a.lock.startedAt ?? ''))
-    )[0];
-  const best = chosen?.lock ?? null;
-  const bestFolder = chosen?.folder ?? null;
+    );
 
-  if (!best) {
+  if (candidates.length === 0) {
     const windows = live.flatMap((l) => l.workspaceFolders).join(', ');
     throw discoverError(
       DISCOVER_NO_LOCK,
@@ -111,16 +121,19 @@ export async function discover(cwd = process.cwd(), env = process.env) {
     );
   }
 
-  let info;
-  try {
-    info = await ping(best);
-  } catch {
-    throw discoverError(
-      DISCOVER_STALE_LOCK,
-      `redline: lock stale (ping failed), remove ${join(dir, best.name)}`,
-      { cwd: target, folder: bestFolder ?? target, lockFile: join(dir, best.name) }
-    );
+  for (const { lock } of candidates) {
+    try {
+      const info = await pingWithRetry(lock);
+      return { port: lock.port, token: lock.token, ping: info };
+    } catch {
+      continue;
+    }
   }
 
-  return { port: best.port, token: best.token, ping: info };
+  const files = candidates.map(({ lock }) => join(dir, lock.name));
+  throw discoverError(
+    DISCOVER_STALE_LOCK,
+    `redline: lock stale (ping failed), remove ${files.join(', ')}`,
+    { cwd: target, folder: candidates[0].folder, lockFile: files[0], lockFiles: files }
+  );
 }

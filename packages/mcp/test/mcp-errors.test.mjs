@@ -114,6 +114,26 @@ test('stale lock tells Claude to reload the window', async () => {
   );
 });
 
+test('a stale lock ahead of a live window is skipped', async () => {
+  const { redlineHome, workspace } = tempWorkspace('redline-ghost-first-');
+  const folder = normalizeWorkspacePath(workspace);
+
+  const { child } = await startProtoServer(workspace, redlineHome);
+  writeGhostLock(redlineHome, [folder], {
+    startedAt: new Date(Date.now() + 60000).toISOString()
+  });
+  try {
+    const result = await requestReview(workspace, redlineHome);
+    assert.equal(result.isError, true);
+    assert.equal(
+      result.content[0].text,
+      'redline: this folder is not a git repository. Pass an explicit source (patch or file pairs) or run from a git repository.'
+    );
+  } finally {
+    child.kill();
+  }
+});
+
 test('a live window outside a git repository asks for an explicit source', async () => {
   const { redlineHome, workspace } = tempWorkspace('redline-nogit-');
 
