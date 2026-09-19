@@ -17,16 +17,20 @@ export interface UiEvent {
     commentCount: number;
     fileCount: number;
     sourceLabel: string;
+    revisit: boolean;
   }) => boolean;
   emitThreadSent: (payload: {
     roundId: string;
     threadId: string;
     file: string;
     line: number;
+    revisit: boolean;
   }) => boolean;
 }
 
 const QUEUED_HINT = 'Queued; /redline:redline-connect in Claude Code picks it up.';
+/** How long the keybinding waits for `redline.reply` to arrive from the renderer before it falls back to the caret. */
+const REPLY_GRACE_MS = 300;
 
 /** The widget hands the same object back to comment commands, so the stored ids ride on it. `savedBody` is the stored markdown, which the edit box shows in place of the rendered body. */
 interface RedlineComment extends vscode.Comment {
@@ -56,6 +60,7 @@ export class ReviewUi implements vscode.Disposable {
   private readonly disposables: vscode.Disposable[] = [];
   private readonly contentChanged = new vscode.EventEmitter<vscode.Uri>();
   private human: vscode.CommentAuthorInformation;
+  private sendAfterReply = false;
   private readonly localIdentity: vscode.CommentAuthorInformation;
   private readonly rootUri: vscode.Uri | undefined;
   private readonly agentIcon: vscode.Uri | undefined;
@@ -426,6 +431,15 @@ export class ReviewUi implements vscode.Disposable {
 
   /** Stores the typed text and returns the thread id, or undefined when nothing was stored. */
   private reply(reply: vscode.CommentReply): string | undefined {
+    const id = this.storeReply(reply);
+    if (this.sendAfterReply) {
+      this.sendAfterReply = false;
+      if (id) this.sendThreadById(id);
+    }
+    return id;
+  }
+
+  private storeReply(reply: vscode.CommentReply): string | undefined {
     const text = reply.text.trim();
     const existing = this.threadIdOf(reply.thread);
     if (text.length === 0) return existing;
@@ -495,7 +509,8 @@ export class ReviewUi implements vscode.Disposable {
       roundId: result.roundId,
       commentCount: result.commentCount,
       fileCount: result.fileCount,
-      sourceLabel: result.sourceLabel
+      sourceLabel: result.sourceLabel,
+      revisit: result.revisit
     });
     this.redecorateRound(result.roundId);
     const what = `${plural(result.commentCount, 'comment')} in ${plural(result.fileCount, 'file')}`;
@@ -531,9 +546,30 @@ export class ReviewUi implements vscode.Disposable {
     return found;
   }
 
-  /** The inline button hands over a CommentReply with the unsaved text; store it before sending. */
-  private sendThread(target: vscode.CommentThread | vscode.CommentReply | undefined): void {
-    const id = this.isReply(target) ? this.reply(target) : this.focusedThreadId(target, hasHumanComment);
+  /**
+   * The inline button hands over a CommentReply with the unsaved text; store it before sending. The keybinding
+   * hands over nothing, so the focused comment editor is submitted through VS Code's own command, which runs
+   * `redline.reply` later: `editor.action.submitComment` resolves before the extension host sees the reply, so
+   * the reply itself performs the send (`sendAfterReply`). The text caret is a fallback for when no reply arrives,
+   * since it may sit in another file of the multi-diff.
+   */
+  private async sendThread(target: vscode.CommentThread | vscode.CommentReply | undefined): Promise<void> {
+    if (this.isReply(target)) {
+      const id = this.storeReply(target);
+      if (id) this.sendThreadById(id);
+      return;
+    }
+    if (target) {
+      const id = this.focusedThreadId(target, hasHumanComment);
+      if (id) this.sendThreadById(id);
+      return;
+    }
+    this.sendAfterReply = true;
+    await vscode.commands.executeCommand('editor.action.submitComment');
+    await new Promise((resolve) => setTimeout(resolve, REPLY_GRACE_MS));
+    if (!this.sendAfterReply) return;
+    this.sendAfterReply = false;
+    const id = this.focusedThreadId(undefined, hasHumanComment);
     if (id) this.sendThreadById(id);
   }
 
@@ -551,7 +587,8 @@ export class ReviewUi implements vscode.Disposable {
       roundId: stored.roundId,
       threadId: stored.id,
       file: stored.anchor.file,
-      line: threadLine(round, stored)
+      line: threadLine(round, stored),
+      revisit: round.deliveredAt !== undefined
     });
     this.refreshThread(stored.id);
     void vscode.window.showInformationMessage(
