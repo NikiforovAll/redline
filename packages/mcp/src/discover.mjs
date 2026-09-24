@@ -54,6 +54,11 @@ async function pingWithRetry(lock) {
   }
 }
 
+function pingFailure(err) {
+  if (err?.name === 'TimeoutError') return 'timeout';
+  return err?.cause?.code ?? err?.cause?.message ?? err?.code ?? err?.message ?? String(err);
+}
+
 export const DISCOVER_NO_LOCK = 'no_lock';
 export const DISCOVER_STALE_LOCK = 'stale_lock';
 
@@ -86,7 +91,30 @@ function affinity(lock, caller) {
   return 0;
 }
 
+const DISCOVER_POLL_MS = 1000;
+
+/**
+ * A window that stops answering restarts its server and writes a new lock (the extension's watchdog),
+ * so a stale result waits for that instead of failing. Between the old lock's removal and the new
+ * one's write the folder briefly has no lock, which counts as part of the same wait.
+ */
 export async function discover(cwd = process.cwd(), env = process.env) {
+  const waitMs = Number(env.REDLINE_DISCOVER_WAIT_MS ?? 45000);
+  const deadline = Date.now() + waitMs;
+  let stale;
+  for (;;) {
+    try {
+      return await discoverOnce(cwd, env);
+    } catch (err) {
+      if (err?.code === DISCOVER_STALE_LOCK) stale = err;
+      else if (!stale || err?.code !== DISCOVER_NO_LOCK) throw err;
+      if (Date.now() + DISCOVER_POLL_MS > deadline) throw stale;
+      await new Promise((resolve) => setTimeout(resolve, DISCOVER_POLL_MS));
+    }
+  }
+}
+
+async function discoverOnce(cwd, env) {
   const dir = redlineHome();
   const target = normalizeWorkspacePath(cwd);
   const all = readLocks(dir);
@@ -121,19 +149,21 @@ export async function discover(cwd = process.cwd(), env = process.env) {
     );
   }
 
+  const reasons = [];
   for (const { lock } of candidates) {
     try {
       const info = await pingWithRetry(lock);
       return { port: lock.port, token: lock.token, ping: info };
-    } catch {
-      continue;
+    } catch (err) {
+      reasons.push(pingFailure(err));
     }
   }
 
   const files = candidates.map(({ lock }) => join(dir, lock.name));
+  const detail = candidates.map(({ lock }, i) => `${lock.name} port ${lock.port}: ${reasons[i]}`).join('; ');
   throw discoverError(
     DISCOVER_STALE_LOCK,
-    `redline: lock stale (ping failed), remove ${files.join(', ')}`,
-    { cwd: target, folder: candidates[0].folder, lockFile: files[0], lockFiles: files }
+    `redline: lock stale (ping failed: ${detail}), remove ${files.join(', ')}`,
+    { cwd: target, folder: candidates[0].folder, lockFile: files[0], lockFiles: files, reason: reasons[0] }
   );
 }

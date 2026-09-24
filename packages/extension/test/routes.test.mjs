@@ -254,6 +254,13 @@ test('POST /debug/threads seeds a reviewer thread and runs the hook', async () =
   }
 });
 
+test('probe answers while the server listens and reports why once it stops', async () => {
+  const other = await startServer({ workspaceFolders: [workspace], version: '0.0.1-test' });
+  assert.equal(await other.probe(), undefined);
+  await other.close();
+  assert.match(String(await other.probe(1000)), /\S/);
+});
+
 test('POST /debug/rounds/drop removes the round through the hook', async () => {
   const dropped = [];
   const other = await startServer({

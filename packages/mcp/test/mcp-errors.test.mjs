@@ -27,7 +27,7 @@ function requestReview(cwd, redlineHome) {
   return new Promise((resolve, reject) => {
     const child = spawn(process.execPath, [mcpServer], {
       cwd,
-      env: { ...process.env, REDLINE_HOME: redlineHome },
+      env: { ...process.env, REDLINE_HOME: redlineHome, REDLINE_DISCOVER_WAIT_MS: '0' },
       stdio: ['pipe', 'pipe', 'pipe']
     });
     const timer = setTimeout(() => {
@@ -109,8 +109,8 @@ test('stale lock tells Claude to reload the window', async () => {
   const text = result.content[0].text;
   assert.equal(
     text,
-    `redline: the VS Code window for ${normalizeWorkspacePath(workspace)} is not answering (stale lock). ` +
-      'Reload that window (Developer: Reload Window), then retry.'
+    `redline: the VS Code window for ${normalizeWorkspacePath(workspace)} is not answering (stale lock, ping: bad port). ` +
+      'It did not recover while this call waited. Reload that window (Developer: Reload Window), then retry.'
   );
 });
 

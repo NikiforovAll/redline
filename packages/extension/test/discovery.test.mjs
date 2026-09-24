@@ -83,9 +83,32 @@ test('ignores a lock whose pid is dead', async () => {
 test('reports the stale-lock error when ping fails', async () => {
   const dir = mkdtempSync(join(tmpdir(), 'redline-stale-'));
   const ghost = writeGhostLock(redlineHome, [normalizeWorkspacePath(dir)]);
-  await assert.rejects(() => discover(dir), /lock stale \(ping failed\), remove .*ghost\.lock/);
+  await assert.rejects(
+    () => discover(dir, { REDLINE_DISCOVER_WAIT_MS: '0' }),
+    /lock stale \(ping failed: ghost\.lock port \d+: .+\), remove .*ghost\.lock/
+  );
   rmSync(ghost, { force: true });
   rmSync(dir, { recursive: true, force: true });
+});
+
+test('waits through a server restart instead of failing on the stale lock', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'redline-restart-'));
+  const ghost = writeGhostLock(redlineHome, [normalizeWorkspacePath(dir)]);
+  let restarted;
+  const restart = setTimeout(async () => {
+    rmSync(ghost, { force: true });
+    restarted = await startServer({ workspaceFolders: [dir], version: '0.0.1-restarted' });
+  }, 1500);
+  try {
+    const found = await discover(dir, { REDLINE_DISCOVER_WAIT_MS: '10000' });
+    assert.equal(found.ping.version, '0.0.1-restarted');
+    assert.equal(found.port, restarted.port);
+  } finally {
+    clearTimeout(restart);
+    await restarted?.close();
+    rmSync(ghost, { force: true });
+    rmSync(dir, { recursive: true, force: true });
+  }
 });
 
 test('reports the no-locks error when the directory is empty', async () => {

@@ -1,5 +1,5 @@
 import { randomBytes } from 'node:crypto';
-import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
+import { createServer, request as httpRequest, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import type { AddNotesResult, Anchor, Note, RequestReview, RequestReviewResult, ReviewEvent, Source } from '@redline/protocol';
 import { SourceUnavailableError } from '../diff/index.ts';
@@ -42,6 +42,8 @@ export interface RunningServer {
   store: ReviewStore;
   /** `delivered` is the number of open SSE streams, one per attached agent, the event was written to. */
   emit: (event: ReviewEvent) => { id: string; delivered: number };
+  /** Pings `/ping` over a new connection, the way the MCP server does from another process. Resolves to the failure reason, or undefined when the server answers. */
+  probe: (timeoutMs?: number) => Promise<string | undefined>;
   close: () => Promise<void>;
 }
 
@@ -350,6 +352,37 @@ export async function startServer(options: StartServerOptions): Promise<RunningS
   });
 
   let closed = false;
+  let lost: string | undefined;
+  server.on('error', (err: NodeJS.ErrnoException) => {
+    lost = err.code ?? err.message;
+  });
+  server.on('close', () => {
+    if (!closed) lost = 'listener closed';
+  });
+
+  const probe = (timeoutMs = 3000): Promise<string | undefined> => {
+    if (lost) return Promise.resolve(lost);
+    return new Promise((resolve) => {
+      const req = httpRequest(
+        {
+          host: '127.0.0.1',
+          port,
+          path: '/ping',
+          agent: false,
+          headers: { authorization: `Bearer ${token}` },
+          timeout: timeoutMs
+        },
+        (res) => {
+          res.resume();
+          resolve(res.statusCode === 200 ? undefined : `ping returned ${res.statusCode}`);
+        }
+      );
+      req.on('timeout', () => req.destroy(new Error(`no answer in ${timeoutMs}ms`)));
+      req.on('error', (err: NodeJS.ErrnoException) => resolve(err.code ?? err.message));
+      req.end();
+    });
+  };
+
   const close = async (): Promise<void> => {
     if (closed) return;
     closed = true;
@@ -359,5 +392,5 @@ export async function startServer(options: StartServerOptions): Promise<RunningS
     await new Promise<void>((resolve) => server.close(() => resolve()));
   };
 
-  return { port, token, lockPath, store, emit, close };
+  return { port, token, lockPath, store, emit, probe, close };
 }

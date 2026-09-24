@@ -21,10 +21,10 @@ export function noWindowText(cwd) {
   );
 }
 
-export function staleWindowText(folder) {
+export function staleWindowText(folder, reason) {
   return (
-    `redline: the VS Code window for ${folder} is not answering (stale lock). ` +
-    `Reload that window (Developer: Reload Window), then retry.`
+    `redline: the VS Code window for ${folder} is not answering (stale lock${reason ? `, ping: ${reason}` : ''}). ` +
+    `It did not recover while this call waited. Reload that window (Developer: Reload Window), then retry.`
   );
 }
 
@@ -57,7 +57,7 @@ function toolError(err) {
   if (err?.code === DISCOVER_NO_LOCK) {
     text = noWindowText(err.cwd ?? process.cwd());
   } else if (err?.code === DISCOVER_STALE_LOCK) {
-    text = staleWindowText(err.folder ?? err.cwd ?? process.cwd());
+    text = staleWindowText(err.folder ?? err.cwd ?? process.cwd(), err.reason);
   } else if (err?.code === NO_SOURCE) {
     text = noSourceText(err.reason, err.detail);
   } else {
