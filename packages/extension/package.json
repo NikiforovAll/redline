@@ -2,7 +2,7 @@
   "name": "redline-extension",
   "displayName": "Claude Code Redline",
   "description": "Review agent diffs in VS Code and send comments back to Claude Code.",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "publisher": "nikiforovall",
   "license": "MIT",
   "icon": "media/icon.png",

@@ -1,6 +1,6 @@
 {
   "name": "@nikiforovall/redline-mcp",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "description": "MCP server and review monitor for redline: discovers a VS Code window running the redline extension and relays review rounds to Claude Code.",
   "type": "module",
   "license": "MIT",
